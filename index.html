@@ -104,7 +104,7 @@
 // ---------- CONSTANTS ----------
 const LS_KEY = 'major-pickem:v1';
 // Bump when SEED_FIELD changes so existing users get the refreshed roster on next load.
-const SEED_VERSION = 4;
+const SEED_VERSION = 5;
 
 // Year-independent tournament metadata.
 const TOURNAMENTS = [
@@ -164,53 +164,59 @@ const CATEGORIES = [
 // The `firstTimerAt` flags should only be set for the Major a player is actually debuting at — these change every year.
 // Source for 2026 Masters first-timers: Golf Monthly + The Fried Egg (Apr 2026, 22 debutants including 6 amateurs).
 const SEED_FIELD = [
-  // Top 10 / contenders (edit ranks the week of each Major)
-  { id:'p_scheffler',   name:'Scottie Scheffler',  country:'USA', owgr:1,  majorsWon:['masters'],         firstTimerAt:[] },
-  { id:'p_schauffele',  name:'Xander Schauffele',  country:'USA', owgr:2,  majorsWon:['pga','theopen'],   firstTimerAt:[] },
-  { id:'p_mcilroy',     name:'Rory McIlroy',       country:'NIR', owgr:3,  majorsWon:['pga','usopen','theopen','masters'], firstTimerAt:[] },
-  { id:'p_morikawa',    name:'Collin Morikawa',    country:'USA', owgr:4,  majorsWon:['pga','theopen'],   firstTimerAt:[] },
-  { id:'p_homa',        name:'Max Homa',           country:'USA', owgr:5,  majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_aberg',       name:'Ludvig Åberg',       country:'SWE', owgr:6,  majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_hovland',     name:'Viktor Hovland',     country:'NOR', owgr:7,  majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_lowry',       name:'Shane Lowry',        country:'IRL', owgr:8,  majorsWon:['theopen'],         firstTimerAt:[] },
-  { id:'p_matsuyama',   name:'Hideki Matsuyama',   country:'JPN', owgr:9,  majorsWon:['masters'],         firstTimerAt:[] },
-  { id:'p_rahm',        name:'Jon Rahm',           country:'ESP', owgr:10, majorsWon:['usopen','masters'],firstTimerAt:[] },
+  // ===== 2026 Masters-week OWGR Top 15 (week ending April 6, 2026) =====
+  // Source: Golf News Net / OWGR archive for Masters week 2026.
+  { id:'p_scheffler',   name:'Scottie Scheffler',  country:'USA', owgr:1,  majorsWon:['masters','pga'],       firstTimerAt:[] },
+  { id:'p_mcilroy',     name:'Rory McIlroy',       country:'NIR', owgr:2,  majorsWon:['pga','usopen','theopen','masters'], firstTimerAt:[] },
+  { id:'p_young',       name:'Cameron Young',      country:'USA', owgr:3,  majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_fleetwood',   name:'Tommy Fleetwood',    country:'ENG', owgr:4,  majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_schauffele',  name:'Xander Schauffele',  country:'USA', owgr:5,  majorsWon:['pga','theopen'],        firstTimerAt:[] },
+  { id:'p_fitzpatrick', name:'Matt Fitzpatrick',   country:'ENG', owgr:6,  majorsWon:['usopen'],               firstTimerAt:[] },
+  { id:'p_rose',        name:'Justin Rose',        country:'ENG', owgr:7,  majorsWon:['usopen'],               firstTimerAt:[] },
+  { id:'p_morikawa',    name:'Collin Morikawa',    country:'USA', owgr:8,  majorsWon:['pga','theopen'],        firstTimerAt:[] },
+  { id:'p_henley',      name:'Russell Henley',     country:'USA', owgr:9,  majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_gotterup',    name:'Chris Gotterup',     country:'USA', owgr:10, majorsWon:[],                       firstTimerAt:['masters'] },
 
-  // Ranked pros (11+)
-  { id:'p_cantlay',     name:'Patrick Cantlay',    country:'USA', owgr:11, majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_fleetwood',   name:'Tommy Fleetwood',    country:'ENG', owgr:12, majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_straka',      name:'Sepp Straka',        country:'AUT', owgr:13, majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_finau',       name:'Tony Finau',         country:'USA', owgr:14, majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_fitzpatrick', name:'Matt Fitzpatrick',   country:'ENG', owgr:15, majorsWon:['usopen'],          firstTimerAt:[] },
-  { id:'p_conners',     name:'Corey Conners',      country:'CAN', owgr:16, majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_day',         name:'Jason Day',          country:'AUS', owgr:17, majorsWon:['pga'],             firstTimerAt:[] },
-  { id:'p_harman',      name:'Brian Harman',       country:'USA', owgr:18, majorsWon:['theopen'],         firstTimerAt:[] },
-  { id:'p_mcnealy',     name:'Maverick McNealy',   country:'USA', owgr:19, majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_detry',       name:'Thomas Detry',       country:'BEL', owgr:20, majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_hatton',      name:'Tyrrell Hatton',     country:'ENG', owgr:21, majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_young',       name:'Cameron Young',      country:'USA', owgr:22, majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_pendrith',    name:'Taylor Pendrith',    country:'CAN', owgr:23, majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_bhatia',      name:'Akshay Bhatia',      country:'USA', owgr:24, majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_clark',       name:'Wyndham Clark',      country:'USA', owgr:25, majorsWon:['usopen'],          firstTimerAt:[] },
-  { id:'p_theegala',    name:'Sahith Theegala',    country:'USA', owgr:26, majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_thomas',      name:'Justin Thomas',      country:'USA', owgr:27, majorsWon:['pga'],             firstTimerAt:[] },
-  { id:'p_spieth',      name:'Jordan Spieth',      country:'USA', owgr:28, majorsWon:['masters','usopen','theopen'], firstTimerAt:[] },
-  { id:'p_davisthompson',name:'Davis Thompson',    country:'USA', owgr:29, majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_kitayama',    name:'Kurt Kitayama',      country:'USA', owgr:31, majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_im',          name:'Sungjae Im',         country:'KOR', owgr:32, majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_smith',       name:'Cameron Smith',      country:'AUS', owgr:33, majorsWon:['theopen'],         firstTimerAt:[] },
-  { id:'p_koepka',      name:'Brooks Koepka',      country:'USA', owgr:34, majorsWon:['pga','usopen'],    firstTimerAt:[] },
-  { id:'p_dechambeau',  name:'Bryson DeChambeau',  country:'USA', owgr:35, majorsWon:['usopen'],          firstTimerAt:[] },
-  { id:'p_rai',         name:'Aaron Rai',          country:'ENG', owgr:38, majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_burns',       name:'Sam Burns',          country:'USA', owgr:39, majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_bezuidenhout',name:'Christiaan Bezuidenhout', country:'RSA', owgr:40, majorsWon:[],             firstTimerAt:[] },
+  // ===== Ranked pros (11+) — OWGR as of Masters week 2026 =====
+  { id:'p_macintyre',   name:'Robert MacIntyre',   country:'SCO', owgr:11, majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_straka',      name:'Sepp Straka',        country:'AUT', owgr:12, majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_spaun',       name:'J.J. Spaun',         country:'USA', owgr:13, majorsWon:['usopen'],               firstTimerAt:[] },
+  { id:'p_matsuyama',   name:'Hideki Matsuyama',   country:'JPN', owgr:14, majorsWon:['masters'],              firstTimerAt:[] },
+  { id:'p_thomas',      name:'Justin Thomas',      country:'USA', owgr:15, majorsWon:['pga'],                  firstTimerAt:[] },
+  { id:'p_aberg',       name:'Ludvig Åberg',       country:'SWE', owgr:16, majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_cantlay',     name:'Patrick Cantlay',    country:'USA', owgr:17, majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_conners',     name:'Corey Conners',      country:'CAN', owgr:18, majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_mcnealy',     name:'Maverick McNealy',   country:'USA', owgr:19, majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_homa',        name:'Max Homa',           country:'USA', owgr:20, majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_lowry',       name:'Shane Lowry',        country:'IRL', owgr:22, majorsWon:['theopen'],              firstTimerAt:[] },
+  { id:'p_detry',       name:'Thomas Detry',       country:'BEL', owgr:24, majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_clark',       name:'Wyndham Clark',      country:'USA', owgr:25, majorsWon:['usopen'],               firstTimerAt:[] },
+  { id:'p_hovland',     name:'Viktor Hovland',     country:'NOR', owgr:26, majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_harman',      name:'Brian Harman',       country:'USA', owgr:27, majorsWon:['theopen'],              firstTimerAt:[] },
+  { id:'p_pendrith',    name:'Taylor Pendrith',    country:'CAN', owgr:28, majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_spieth',      name:'Jordan Spieth',      country:'USA', owgr:29, majorsWon:['masters','usopen','theopen'], firstTimerAt:[] },
+  { id:'p_finau',       name:'Tony Finau',         country:'USA', owgr:30, majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_kitayama',    name:'Kurt Kitayama',      country:'USA', owgr:31, majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_im',          name:'Sungjae Im',         country:'KOR', owgr:32, majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_bhatia',      name:'Akshay Bhatia',      country:'USA', owgr:33, majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_theegala',    name:'Sahith Theegala',    country:'USA', owgr:34, majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_davisthompson',name:'Davis Thompson',    country:'USA', owgr:35, majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_dechambeau',  name:'Bryson DeChambeau',  country:'USA', owgr:36, majorsWon:['usopen'],               firstTimerAt:[] },
+  { id:'p_rai',         name:'Aaron Rai',          country:'ENG', owgr:38, majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_burns',       name:'Sam Burns',          country:'USA', owgr:39, majorsWon:[],                       firstTimerAt:[] },
+  { id:'p_hatton',      name:'Tyrrell Hatton',     country:'ENG', owgr:42, majorsWon:[],                       firstTimerAt:[] },   // LIV — OWGR deflated
+  { id:'p_day',         name:'Jason Day',          country:'AUS', owgr:45, majorsWon:['pga'],                  firstTimerAt:[] },
+  { id:'p_koepka',      name:'Brooks Koepka',      country:'USA', owgr:55, majorsWon:['pga','usopen'],         firstTimerAt:[] },   // LIV
+  { id:'p_smith',       name:'Cameron Smith',      country:'AUS', owgr:65, majorsWon:['theopen'],              firstTimerAt:[] },   // LIV
+  { id:'p_rahm',        name:'Jon Rahm',           country:'ESP', owgr:80, majorsWon:['usopen','masters'],     firstTimerAt:[] },   // LIV — OWGR deflated
+  { id:'p_bezuidenhout',name:'Christiaan Bezuidenhout', country:'RSA', owgr:90, majorsWon:[],                  firstTimerAt:[] },
 
   // ===== 2026 Masters first-timers (22 total: 17 pros + 5 amateurs + 1 int'l am) =====
   // Source: Golf Monthly / The Fried Egg coverage, April 2026.
   { id:'p_brennan',     name:'Michael Brennan',           country:'USA', owgr:95,  majorsWon:[], firstTimerAt:['masters'] },
   { id:'p_bridgeman',   name:'Jacob Bridgeman',           country:'USA', owgr:50,  majorsWon:[], firstTimerAt:['masters'] },
   { id:'p_gerard',      name:'Ryan Gerard',               country:'USA', owgr:80,  majorsWon:[], firstTimerAt:['masters'] },
-  { id:'p_gotterup',    name:'Chris Gotterup',            country:'USA', owgr:30,  majorsWon:[], firstTimerAt:['masters'] },
+  // Chris Gotterup is listed above with owgr:10 (he's OWGR Top 10 AND a Masters first-timer).
   { id:'p_griffin',     name:'Ben Griffin',               country:'USA', owgr:36,  majorsWon:[], firstTimerAt:['masters'] },
   { id:'p_hall',        name:'Harry Hall',                country:'ENG', owgr:60,  majorsWon:[], firstTimerAt:['masters'] },
   { id:'p_jarvis',      name:'Casey Jarvis',              country:'RSA', owgr:120, majorsWon:[], firstTimerAt:['masters'] },
@@ -913,21 +919,23 @@ async function pullFieldFromEspn() {
     const comps = data?.events?.[0]?.competitions?.[0]?.competitors || [];
     if (!comps.length) throw new Error('No competitors returned');
 
-    // Preserve any existing firstTimerAt/majorsWon metadata (keyed by normalized name).
+    // Preserve curated OWGR / firstTimerAt / majorsWon metadata (keyed by normalized name).
+    // The seed field carries OWGR as-of the tournament week; ESPN only gives us tournament
+    // finish position, which would wrongly label the Masters champion as "OWGR #1".
     const prevByName = new Map();
-    state.field.forEach(p => prevByName.set(normalizeName(p.name), p));
+    (SEED_FIELD).forEach(p => prevByName.set(normalizeName(p.name), p));
+    state.field.forEach(p => { if (!prevByName.has(normalizeName(p.name))) prevByName.set(normalizeName(p.name), p); });
 
-    // Replace the field entirely with this tournament's competitors — this is what the user expects.
     const newField = comps.map((c,i) => {
       const ath = c.athlete || {};
       const name = ath.displayName || ath.fullName || `Player ${i+1}`;
       const prior = prevByName.get(normalizeName(name));
-      const id = 'espn_' + (ath.id || normalizeName(name).replace(/\s+/g,'_'));
+      const id = prior?.id || 'espn_' + (ath.id || normalizeName(name).replace(/\s+/g,'_'));
       return {
         id,
         name,
-        country: countryCode(ath.flag?.alt || ath.birthPlace?.country || prior?.country),
-        owgr: (i+1),
+        country: prior?.country || countryCode(ath.flag?.alt || ath.birthPlace?.country),
+        owgr: prior?.owgr ?? 999,                       // 999 = NR; edit in Field editor before drafting
         majorsWon: prior?.majorsWon || [],
         firstTimerAt: prior?.firstTimerAt || [],
         amateur: !!(c.amateur || prior?.amateur)
@@ -935,7 +943,8 @@ async function pullFieldFromEspn() {
     });
     state.field = newField;
     persist(); render();
-    toast(`Loaded ${comps.length} players from ${evName}. Verify OWGR / majors / first-timers before drafting.`);
+    const unknown = newField.filter(p => p.owgr === 999 && !p.amateur).length;
+    toast(`Loaded ${comps.length} players from ${evName}.${unknown ? ` ${unknown} unranked — edit OWGR in Field editor.` : ''}`);
   } catch (e) {
     console.warn('Pull field failed:', e);
     toast('ESPN field fetch failed. See console.');

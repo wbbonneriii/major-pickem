@@ -168,10 +168,14 @@ const SEED_FIELD = [
 ];
 
 // ---------- STATE ----------
+// Per-category pick quota. Total picks per user = sum of these.
+const DEFAULT_PICKS_BY_CATEGORY = { top10: 2, international: 1, nomajorwins: 1, firsttimers: 1 };
+const picksPerUser = (pbc) => Object.values(pbc).reduce((a,b)=>a+b, 0);
+
 const DEFAULT_STATE = () => ({
   tournamentId: null,         // which Major this game is for
   users: [],                  // [{id, name}]
-  picksPerUser: 4,            // one per category
+  picksByCategory: { ...DEFAULT_PICKS_BY_CATEGORY },
   draftOrder: [],             // computed sequence of user ids (snake)
   currentPickIndex: 0,
   picks: [],                  // [{userId, category, playerId, round, overall}]
@@ -199,7 +203,13 @@ function loadState() {
   // 2) localStorage
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) return { ...DEFAULT_STATE(), ...JSON.parse(raw) };
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Migrate old shape (picksPerUser only) to picksByCategory
+      if (!parsed.picksByCategory) parsed.picksByCategory = { ...DEFAULT_PICKS_BY_CATEGORY };
+      delete parsed.picksPerUser;
+      return { ...DEFAULT_STATE(), ...parsed };
+    }
   } catch (e) {}
   return DEFAULT_STATE();
 }
@@ -264,11 +274,11 @@ function decodePayload(s) {
 }
 
 // ---------- DRAFT LOGIC ----------
-function buildSnakeOrder(userIds, picksPerUser) {
-  // 1-2-2-1 for 2 players = [A,B,B,A]
-  // general: snake reversal each round
+function buildSnakeOrder(userIds, rounds) {
+  // Standard snake: round 1 = A,B,C…  round 2 = C,B,A  etc.
+  // For 2 players and 5 rounds this expands to A-B, B-A, A-B, B-A, A-B (each gets 5 picks).
   const order = [];
-  for (let r = 0; r < picksPerUser; r++) {
+  for (let r = 0; r < rounds; r++) {
     const roundIds = r % 2 === 0 ? userIds : [...userIds].reverse();
     order.push(...roundIds);
   }
@@ -297,8 +307,16 @@ function userPicks(userId) {
   return state.picks.filter(p => p.userId === userId);
 }
 
-function categoryAlreadyUsed(userId, categoryId) {
-  return userPicks(userId).some(p => p.category === categoryId);
+function picksInCategory(userId, categoryId) {
+  return userPicks(userId).filter(p => p.category === categoryId);
+}
+
+function categoryQuota(categoryId) {
+  return state.picksByCategory?.[categoryId] ?? 1;
+}
+
+function categoryQuotaReached(userId, categoryId) {
+  return picksInCategory(userId, categoryId).length >= categoryQuota(categoryId);
 }
 
 function advancePick() {
@@ -308,7 +326,7 @@ function advancePick() {
 
 function makePick(userId, categoryId, playerId) {
   if (pickedPlayerIds().has(playerId)) return 'That player is already taken.';
-  if (categoryAlreadyUsed(userId, categoryId)) return 'You already used that category.';
+  if (categoryQuotaReached(userId, categoryId)) return `You've filled your ${CATEGORIES.find(c=>c.id===categoryId)?.label} slots.`;
   const round = Math.floor(state.currentPickIndex / state.users.length) + 1;
   state.picks.push({
     userId, category:categoryId, playerId,
@@ -327,7 +345,7 @@ function undoLastPick() {
 }
 
 function draftComplete() {
-  return state.users.length > 0 && state.picks.length >= state.users.length * state.picksPerUser;
+  return state.users.length > 0 && state.picks.length >= state.users.length * picksPerUser(state.picksByCategory);
 }
 
 // ---------- WINNER DETERMINATION ----------
@@ -595,13 +613,28 @@ function renderSetup() {
   );
   wrap.appendChild(usersCard);
 
-  // Picks per user + category overview
+  // Picks per user + category overview (editable quotas)
+  const totalPicks = picksPerUser(state.picksByCategory);
   const optsCard = el('div',{class:'card p-5 mb-5'},
     el('h3',{class:'font-serif text-xl text-masters-800 mb-1'},'Draft Categories'),
-    el('p',{class:'text-sm text-gray-600 mb-3'},'Each player drafts one from each of the four categories using snake order.'),
+    el('p',{class:'text-sm text-gray-600 mb-3'},
+      `Each player drafts ${totalPicks} golfers (snake order). Adjust picks-per-category below if needed.`),
     el('div',{class:'grid grid-cols-1 sm:grid-cols-2 gap-3'},
       ...CATEGORIES.map(c => el('div',{class:'border border-gray-200 rounded-xl p-3'},
-        el('div',{class:'font-semibold text-masters-800'}, c.label),
+        el('div',{class:'flex items-center justify-between gap-2'},
+          el('div',{class:'font-semibold text-masters-800'}, c.label),
+          el('div',{class:'flex items-center gap-1'},
+            el('button',{class:'btn btn-ghost', style:'padding:4px 10px', onclick:()=>{
+              state.picksByCategory[c.id] = Math.max(0, (state.picksByCategory[c.id]||0) - 1);
+              persist(); render();
+            }}, '−'),
+            el('span',{class:'w-8 text-center font-bold text-masters-800'}, String(state.picksByCategory[c.id] ?? 0)),
+            el('button',{class:'btn btn-ghost', style:'padding:4px 10px', onclick:()=>{
+              state.picksByCategory[c.id] = (state.picksByCategory[c.id]||0) + 1;
+              persist(); render();
+            }}, '+')
+          )
+        ),
         el('div',{class:'text-xs text-gray-600 mt-1'}, c.help)
       ))
     )
@@ -618,7 +651,7 @@ function renderSetup() {
       class:'btn btn-primary',
       disabled: !canStart,
       onclick:()=>{
-        state.draftOrder = buildSnakeOrder(state.users.map(u=>u.id), state.picksPerUser);
+        state.draftOrder = buildSnakeOrder(state.users.map(u=>u.id), picksPerUser(state.picksByCategory));
         state.currentPickIndex = 0;
         state.picks = [];
         persist(); render();
@@ -758,6 +791,7 @@ function renderDraft() {
   const picker = currentPicker();
   const round = Math.floor(state.currentPickIndex / state.users.length) + 1;
   const picksTaken = pickedPlayerIds();
+  const totalRounds = picksPerUser(state.picksByCategory);
 
   const wrap = el('section');
   wrap.appendChild(el('div',{class:'flex items-baseline justify-between flex-wrap gap-2 mb-5'},
@@ -765,7 +799,7 @@ function renderDraft() {
       el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, 'Snake Draft'),
       el('h2',{class:'font-serif text-3xl text-masters-800 font-extrabold'}, t.name),
       el('div',{class:'text-gray-600 text-sm mt-1'},
-        `Pick ${state.currentPickIndex+1} of ${state.draftOrder.length} • Round ${round} of ${state.picksPerUser}`)
+        `Pick ${state.currentPickIndex+1} of ${state.draftOrder.length} • Round ${round} of ${totalRounds}`)
     ),
     el('div',{class:'flex items-center gap-2'},
       el('button',{class:'btn btn-ghost', onclick:undoLastPick, disabled: state.picks.length===0}, 'Undo Last'),
@@ -782,12 +816,15 @@ function renderDraft() {
         el('div',{class:'text-sm text-gray-600 mt-1'}, `Round ${round} • Pick #${state.currentPickIndex+1}`)
       ),
       el('div',{class:'text-right'},
-        el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, 'Used by '+ (picker?.name||'')),
+        el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, 'Slots for '+ (picker?.name||'')),
         el('div',{class:'mt-1 flex flex-wrap gap-1 justify-end'},
           ...(picker ? CATEGORIES.map(c => {
-            const used = categoryAlreadyUsed(picker.id, c.id);
-            return el('span',{class:'pill ' + (used ? 'pill-red' : 'pill-green')}, c.label + (used?' ✓':''));
-          }) : [])
+            const quota = categoryQuota(c.id);
+            if (quota === 0) return null;
+            const used = picksInCategory(picker.id, c.id).length;
+            const full = used >= quota;
+            return el('span',{class:'pill ' + (full ? 'pill-red' : 'pill-green')}, `${c.label} ${used}/${quota}`);
+          }).filter(Boolean) : [])
         )
       )
     )
@@ -798,20 +835,23 @@ function renderDraft() {
   if (picker) {
     const grid = el('div',{class:'grid grid-cols-1 sm:grid-cols-2 gap-4'});
     CATEGORIES.forEach(c => {
-      const used = categoryAlreadyUsed(picker.id, c.id);
+      const quota = categoryQuota(c.id);
+      if (quota === 0) return;
+      const usedCount = picksInCategory(picker.id, c.id).length;
+      const full = usedCount >= quota;
       const eligible = state.field
         .filter(p => isPlayerInCategory(p, c.id, state.tournamentId))
         .filter(p => !picksTaken.has(p.id))
         .sort((a,b) => a.owgr - b.owgr);
 
-      const sel = el('select',{disabled: used || eligible.length===0, id:'sel_'+c.id},
-        el('option',{value:''}, used ? 'Already used' : (eligible.length===0 ? 'No eligible players' : 'Select a player…')),
+      const sel = el('select',{disabled: full || eligible.length===0, id:'sel_'+c.id},
+        el('option',{value:''}, full ? 'Slots filled' : (eligible.length===0 ? 'No eligible players' : 'Select a player…')),
         ...eligible.map(p => el('option',{value:p.id}, `#${p.owgr} ${p.name} (${p.country})`))
       );
 
       const btn = el('button',{
         class:'btn btn-primary mt-3 w-full',
-        disabled: used || eligible.length===0,
+        disabled: full || eligible.length===0,
         onclick:()=>{
           const val = sel.value;
           if (!val) return toast('Choose a player first.');
@@ -819,11 +859,11 @@ function renderDraft() {
           if (err) return toast(err);
           persist(); render();
         }
-      }, used ? 'Used' : `Pick ${c.label}`);
+      }, full ? 'Filled' : `Pick ${c.label} (${usedCount+1}/${quota})`);
 
       grid.appendChild(el('div',{class:'card p-4'},
         el('div',{class:'flex items-center justify-between'},
-          el('div',{class:'font-serif text-lg text-masters-800'}, c.label),
+          el('div',{class:'font-serif text-lg text-masters-800'}, c.label + (quota>1 ? ` × ${quota}` : '')),
           el('div',{class:'text-xs text-gray-500'}, `${eligible.length} eligible`)
         ),
         el('div',{class:'text-xs text-gray-600 mb-2'}, c.help),
@@ -848,27 +888,34 @@ function renderDraftBoard() {
     el('div',{class:'text-xs text-gray-500'}, `${state.picks.length}/${state.draftOrder.length} picks made`)
   ));
 
-  // Group picks by user
+  // Group picks by user — render one row per quota slot so "Top 10 × 2" shows twice.
+  const totalPicks = picksPerUser(state.picksByCategory);
   const grid = el('div',{class:'grid grid-cols-1 md:grid-cols-2 gap-4'});
   state.users.forEach(u => {
     const picks = userPicks(u.id);
-    const cats = CATEGORIES.map(c => {
-      const pick = picks.find(p => p.category === c.id);
-      const player = pick ? state.field.find(f => f.id === pick.playerId) : null;
-      return el('div',{class:'flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0'},
-        el('div',{class:'text-sm text-gray-500'}, c.label),
-        el('div',{class:'text-sm font-medium text-gray-800 text-right'},
-          player ? `${player.name} `  : '—',
-          player ? el('span',{class:'text-gray-500 text-xs'}, `#${player.owgr}`) : null
-        )
-      );
+    const rows = [];
+    CATEGORIES.forEach(c => {
+      const quota = categoryQuota(c.id);
+      const filled = picksInCategory(u.id, c.id);
+      for (let i = 0; i < quota; i++) {
+        const pick = filled[i];
+        const player = pick ? state.field.find(f => f.id === pick.playerId) : null;
+        const label = quota > 1 ? `${c.label} ${i+1}` : c.label;
+        rows.push(el('div',{class:'flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0'},
+          el('div',{class:'text-sm text-gray-500'}, label),
+          el('div',{class:'text-sm font-medium text-gray-800 text-right'},
+            player ? `${player.name} ` : '—',
+            player ? el('span',{class:'text-gray-500 text-xs'}, `#${player.owgr}`) : null
+          )
+        ));
+      }
     });
     grid.appendChild(el('div',{class:'border border-gray-200 rounded-xl p-3'},
       el('div',{class:'flex items-center justify-between mb-2'},
         el('div',{class:'font-serif text-lg text-masters-800'}, u.name),
-        el('div',{class:'text-xs text-gray-500'}, `${picks.length}/${state.picksPerUser}`)
+        el('div',{class:'text-xs text-gray-500'}, `${picks.length}/${totalPicks}`)
       ),
-      ...cats
+      ...rows
     ));
   });
   card.appendChild(grid);
@@ -931,7 +978,7 @@ function renderScoreboard() {
         el('div',{class:'text-xs text-gray-500'}, `${row.cuts} made cut`)
       )
     ));
-    // Player rows
+    // Player rows — one row per quota slot; duplicates like Top 10 ×2 appear twice.
     const table = el('table',{class:'w-full text-sm'});
     table.appendChild(el('thead',{class:'text-gray-500'},
       el('tr',{},
@@ -943,23 +990,28 @@ function renderScoreboard() {
       )));
     const tbody = el('tbody',{});
     CATEGORIES.forEach(c => {
-      const ps = row.picks.find(p => p.pick.category === c.id);
-      if (!ps) return;
-      const s = ps.score || {};
-      const cutCell =
-        s.madeCut === true  ? el('span',{class:'tick'},'✓') :
-        s.madeCut === false ? el('span',{class:'text-flag font-bold'},'—') :
-        el('span',{class:'dash'},'–');
-      tbody.appendChild(el('tr',{class:'border-t border-gray-100'},
-        el('td',{class:'py-2 pr-2 text-gray-500'}, c.label),
-        el('td',{class:'py-2 pr-2'},
-          el('div',{class:'font-medium'}, ps.player?.name || '—'),
-          el('div',{class:'text-xs text-gray-500'}, ps.player ? `#${ps.player.owgr} • ${ps.player.country}` : '')
-        ),
-        el('td',{class:'py-2 pr-2 text-gray-600'}, s.pos || '—'),
-        el('td',{class:`py-2 pr-2 text-right ${scoreClass(s.total)}`}, fmtScore(s.total)),
-        el('td',{class:'py-2 text-center'}, cutCell)
-      ));
+      const quota = categoryQuota(c.id);
+      if (quota === 0) return;
+      const slotPicks = row.picks.filter(ps => ps.pick.category === c.id);
+      for (let i = 0; i < quota; i++) {
+        const ps = slotPicks[i];
+        const label = quota > 1 ? `${c.label} ${i+1}` : c.label;
+        const s = ps?.score || {};
+        const cutCell =
+          s.madeCut === true  ? el('span',{class:'tick'},'✓') :
+          s.madeCut === false ? el('span',{class:'text-flag font-bold'},'—') :
+          el('span',{class:'dash'},'–');
+        tbody.appendChild(el('tr',{class:'border-t border-gray-100'},
+          el('td',{class:'py-2 pr-2 text-gray-500'}, label),
+          el('td',{class:'py-2 pr-2'},
+            el('div',{class:'font-medium'}, ps?.player?.name || '—'),
+            el('div',{class:'text-xs text-gray-500'}, ps?.player ? `#${ps.player.owgr} • ${ps.player.country}` : '')
+          ),
+          el('td',{class:'py-2 pr-2 text-gray-600'}, s.pos || '—'),
+          el('td',{class:`py-2 pr-2 text-right ${scoreClass(s.total)}`}, fmtScore(s.total)),
+          el('td',{class:'py-2 text-center'}, cutCell)
+        ));
+      }
     });
     table.appendChild(tbody);
     team.appendChild(table);

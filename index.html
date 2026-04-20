@@ -61,6 +61,10 @@
   .fade-in { animation: fade .25s ease; }
   @keyframes fade { from { opacity:0; transform:translateY(4px);} to { opacity:1; transform:none; } }
   .kbd { font-family:ui-monospace,Menlo,monospace; font-size:12px; background:#f3f4f6; border:1px solid #e5e7eb; border-bottom-width:2px; padding:1px 6px; border-radius:4px; }
+  .modal-backdrop { position:fixed; inset:0; background:rgba(17,24,39,.55); display:none; align-items:center; justify-content:center; z-index:100; padding:20px; }
+  .modal-backdrop.show { display:flex; }
+  .modal-card { background:#fff; border-radius:14px; box-shadow:0 30px 80px rgba(0,0,0,.25); max-width:640px; width:100%; padding:22px; }
+  .modal-card textarea { width:100%; min-height:110px; border:1px solid #d1d5db; border-radius:9px; padding:9px 10px; font-family:ui-monospace,Menlo,monospace; font-size:12px; color:#111827; background:#f9fafb; resize:vertical; word-break:break-all; }
 </style>
 </head>
 <body class="min-h-screen">
@@ -91,6 +95,24 @@
 
 <div id="toast" class="toast"></div>
 
+<!-- ===================== SHARE MODAL ===================== -->
+<div id="share-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="share-modal-title">
+  <div class="modal-card">
+    <div class="flex items-start justify-between gap-3 mb-3">
+      <div>
+        <h3 id="share-modal-title" class="font-serif text-2xl text-masters-800 font-extrabold">Share this game</h3>
+        <p class="text-sm text-gray-600 mt-1">Copy the link below. Anyone who opens it sees the same draft and live scores — no login needed.</p>
+      </div>
+      <button id="share-modal-close" class="btn btn-ghost" aria-label="Close">✕</button>
+    </div>
+    <textarea id="share-modal-url" readonly onclick="this.select()"></textarea>
+    <div id="share-modal-meta" class="text-xs text-gray-500 mt-2"></div>
+    <div class="flex justify-end gap-2 mt-4">
+      <button id="share-modal-copy" class="btn btn-primary">Copy Link</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===================== APP SCRIPT ===================== -->
 <script>
 /* =====================================================================
@@ -104,7 +126,7 @@
 // ---------- CONSTANTS ----------
 const LS_KEY = 'major-pickem:v1';
 // Bump when SEED_FIELD changes so existing users get the refreshed roster on next load.
-const SEED_VERSION = 5;
+const SEED_VERSION = 6;
 
 // Year-independent tournament metadata.
 const TOURNAMENTS = [
@@ -238,9 +260,13 @@ const SEED_FIELD = [
 ];
 
 // ---------- STATE ----------
-// Per-category pick quota. Total picks per user = sum of these.
+// Per-category pick quota for STARTERS. Total starters per user = sum of these.
 const DEFAULT_PICKS_BY_CATEGORY = { top10: 2, international: 1, nomajorwins: 1, firsttimers: 1 };
-const picksPerUser = (pbc) => Object.values(pbc).reduce((a,b)=>a+b, 0);
+// Alternates (not counted in team score unless swapped in). Any field player qualifies.
+const DEFAULT_ALTERNATES_PER_USER = 2;
+
+const starterPicksPerUser = (pbc) => Object.values(pbc).reduce((a,b)=>a+b, 0);
+const totalPicksPerUser = (pbc, alts) => starterPicksPerUser(pbc) + (alts || 0);
 
 const DEFAULT_STATE = () => ({
   seedVersion: SEED_VERSION,
@@ -248,9 +274,10 @@ const DEFAULT_STATE = () => ({
   tournamentId: null,         // which Major this game is for
   users: [],                  // [{id, name}]
   picksByCategory: { ...DEFAULT_PICKS_BY_CATEGORY },
+  alternatesPerUser: DEFAULT_ALTERNATES_PER_USER,
   draftOrder: [],             // computed sequence of user ids (snake)
   currentPickIndex: 0,
-  picks: [],                  // [{userId, category, playerId, round, overall}]
+  picks: [],                  // [{userId, category, playerId, round, overall, isAlternate?}]
   field: SEED_FIELD,          // editable roster
   scores: {},                 // playerId -> { total, today, thru, madeCut, rounds:[...], pos }
   lastSync: null
@@ -265,6 +292,7 @@ function loadState() {
     try {
       const payload = decodePayload(hash.slice(3));
       if (payload) {
+        hydrateSharedPayload(payload);
         persist(payload);
         // keep URL clean after ingest
         history.replaceState(null, '', window.location.pathname + window.location.search);
@@ -278,6 +306,7 @@ function loadState() {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (!parsed.picksByCategory) parsed.picksByCategory = { ...DEFAULT_PICKS_BY_CATEGORY };
+      if (parsed.alternatesPerUser == null) parsed.alternatesPerUser = DEFAULT_ALTERNATES_PER_USER;
       delete parsed.picksPerUser;
       // Auto-refresh roster when SEED_FIELD changes between releases (preserves picks/users/scores).
       if (parsed.seedVersion !== SEED_VERSION) {
@@ -292,6 +321,19 @@ function loadState() {
 function persist(next) {
   state = next ?? state;
   try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+}
+// Incoming share payloads only carry players referenced by picks/scores, so merge
+// the local SEED_FIELD in as a fallback and pin seedVersion to prevent a later
+// migration from wiping the shared overrides.
+function hydrateSharedPayload(payload) {
+  const byId = new Map();
+  (SEED_FIELD || []).forEach(p => byId.set(p.id, p));
+  (payload.field || []).forEach(p => byId.set(p.id, p));
+  payload.field = Array.from(byId.values());
+  payload.seedVersion = SEED_VERSION;
+  if (!payload.picksByCategory) payload.picksByCategory = { ...DEFAULT_PICKS_BY_CATEGORY };
+  if (payload.alternatesPerUser == null) payload.alternatesPerUser = DEFAULT_ALTERNATES_PER_USER;
+  return payload;
 }
 function resetAll() {
   if (!confirm('Reset this game and clear all picks? This cannot be undone.')) return;
@@ -394,8 +436,17 @@ function isPlayerInCategory(player, categoryId, tournamentId) {
     case 'international': return player.country !== 'USA' && player.owgr > 10;
     case 'nomajorwins':   return (player.majorsWon || []).length === 0;
     case 'firsttimers':   return (player.firstTimerAt || []).includes(tournamentId);
+    case 'alternate':     return true;   // any field player
     default: return false;
   }
+}
+
+// Starter picks (count toward team score) vs alternates.
+function starterPicks(userId) {
+  return state.picks.filter(p => p.userId === userId && !p.isAlternate);
+}
+function alternatePicks(userId) {
+  return state.picks.filter(p => p.userId === userId && p.isAlternate);
 }
 
 function pickedPlayerIds() { return new Set(state.picks.map(p => p.playerId)); }
@@ -411,15 +462,25 @@ function userPicks(userId) {
 }
 
 function picksInCategory(userId, categoryId) {
-  return userPicks(userId).filter(p => p.category === categoryId);
+  // Only starter picks count against category quotas. Alternates are tracked separately.
+  return userPicks(userId).filter(p => p.category === categoryId && !p.isAlternate);
 }
 
 function categoryQuota(categoryId) {
+  if (categoryId === 'alternate') return state.alternatesPerUser ?? 0;
   return state.picksByCategory?.[categoryId] ?? 1;
 }
 
 function categoryQuotaReached(userId, categoryId) {
+  if (categoryId === 'alternate') {
+    return alternatePicks(userId).length >= categoryQuota('alternate');
+  }
   return picksInCategory(userId, categoryId).length >= categoryQuota(categoryId);
+}
+
+// True if the user has filled every starter category (ready to draft alternates).
+function startersFilled(userId) {
+  return CATEGORIES.every(c => picksInCategory(userId, c.id).length >= categoryQuota(c.id));
 }
 
 function advancePick() {
@@ -429,14 +490,32 @@ function advancePick() {
 
 function makePick(userId, categoryId, playerId) {
   if (pickedPlayerIds().has(playerId)) return 'That player is already taken.';
-  if (categoryQuotaReached(userId, categoryId)) return `You've filled your ${CATEGORIES.find(c=>c.id===categoryId)?.label} slots.`;
+  if (categoryQuotaReached(userId, categoryId)) {
+    if (categoryId === 'alternate') return `You've filled your Alternate slots.`;
+    return `You've filled your ${CATEGORIES.find(c=>c.id===categoryId)?.label} slots.`;
+  }
   const round = Math.floor(state.currentPickIndex / state.users.length) + 1;
   state.picks.push({
     userId, category:categoryId, playerId,
-    round, overall: state.currentPickIndex + 1
+    round, overall: state.currentPickIndex + 1,
+    isAlternate: categoryId === 'alternate'
   });
   advancePick();
   return null;
+}
+
+// Swap a starter pick with one of the same user's alternates.
+// The alternate inherits the starter's category so it slots into the same label,
+// and the starter becomes an alternate (still tracked, just no longer counted).
+function swapPicks(userId, starterPickOverall, alternatePickOverall) {
+  const s = state.picks.find(p => p.userId === userId && p.overall === starterPickOverall && !p.isAlternate);
+  const a = state.picks.find(p => p.userId === userId && p.overall === alternatePickOverall && p.isAlternate);
+  if (!s || !a) return;
+  const keptCategory = s.category;
+  s.category = 'alternate'; s.isAlternate = true;
+  a.category = keptCategory; a.isAlternate = false;
+  persist(); render();
+  toast('Swapped.');
 }
 
 function undoLastPick() {
@@ -448,7 +527,9 @@ function undoLastPick() {
 }
 
 function draftComplete() {
-  return state.users.length > 0 && state.picks.length >= state.users.length * picksPerUser(state.picksByCategory);
+  if (!state.users.length) return false;
+  const need = totalPicksPerUser(state.picksByCategory, state.alternatesPerUser);
+  return state.picks.length >= state.users.length * need;
 }
 
 // ---------- WINNER DETERMINATION ----------
@@ -462,17 +543,18 @@ function winnerPlayerId() {
 }
 
 function computeStandings() {
+  const attach = (p) => {
+    const pl = state.field.find(f => f.id === p.playerId);
+    const s = state.scores[p.playerId] || {};
+    return { pick: p, player: pl, score: s };
+  };
   return state.users.map(u => {
-    const picks = userPicks(u.id);
-    const playerScores = picks.map(p => {
-      const pl = state.field.find(f => f.id === p.playerId);
-      const s = state.scores[p.playerId] || {};
-      return { pick: p, player: pl, score: s };
-    });
-    const total = playerScores.reduce((a,ps) => a + (Number(ps.score.total) || 0), 0);
-    const cuts = playerScores.filter(ps => ps.score.madeCut === true).length;
-    const ownsWinner = playerScores.some(ps => state.scores[ps.pick.playerId]?.isWinner);
-    return { user:u, picks:playerScores, total, cuts, ownsWinner };
+    const starterSc  = starterPicks(u.id).map(attach);
+    const alternateSc = alternatePicks(u.id).map(attach);
+    const total = starterSc.reduce((a,ps) => a + (Number(ps.score.total) || 0), 0);
+    const cuts  = starterSc.filter(ps => ps.score.madeCut === true).length;
+    const ownsWinner = starterSc.some(ps => state.scores[ps.pick.playerId]?.isWinner);
+    return { user:u, picks:starterSc, alternates:alternateSc, total, cuts, ownsWinner };
   });
 }
 
@@ -767,11 +849,13 @@ function renderSetup() {
   wrap.appendChild(usersCard);
 
   // Picks per user + category overview (editable quotas)
-  const totalPicks = picksPerUser(state.picksByCategory);
+  const starters = starterPicksPerUser(state.picksByCategory);
+  const alts = state.alternatesPerUser || 0;
+  const totalPicks = starters + alts;
   const optsCard = el('div',{class:'card p-5 mb-5'},
     el('h3',{class:'font-serif text-xl text-masters-800 mb-1'},'Draft Categories'),
     el('p',{class:'text-sm text-gray-600 mb-3'},
-      `Each player drafts ${totalPicks} golfers (snake order). Adjust picks-per-category below if needed.`),
+      `Each player drafts ${starters} starters + ${alts} alternates = ${totalPicks} golfers (snake order). Alternates don't count toward the team score unless swapped in.`),
     el('div',{class:'grid grid-cols-1 sm:grid-cols-2 gap-3'},
       ...CATEGORIES.map(c => el('div',{class:'border border-gray-200 rounded-xl p-3'},
         el('div',{class:'flex items-center justify-between gap-2'},
@@ -789,7 +873,24 @@ function renderSetup() {
           )
         ),
         el('div',{class:'text-xs text-gray-600 mt-1'}, c.help)
-      ))
+      )),
+      el('div',{class:'border border-gray-200 rounded-xl p-3 bg-gray-50'},
+        el('div',{class:'flex items-center justify-between gap-2'},
+          el('div',{class:'font-semibold text-masters-800'}, 'Alternates'),
+          el('div',{class:'flex items-center gap-1'},
+            el('button',{class:'btn btn-ghost', style:'padding:4px 10px', onclick:()=>{
+              state.alternatesPerUser = Math.max(0, (state.alternatesPerUser||0) - 1);
+              persist(); render();
+            }}, '−'),
+            el('span',{class:'w-8 text-center font-bold text-masters-800'}, String(state.alternatesPerUser ?? 0)),
+            el('button',{class:'btn btn-ghost', style:'padding:4px 10px', onclick:()=>{
+              state.alternatesPerUser = (state.alternatesPerUser||0) + 1;
+              persist(); render();
+            }}, '+')
+          )
+        ),
+        el('div',{class:'text-xs text-gray-600 mt-1'}, 'Backup picks — not counted unless swapped in via the scoreboard.')
+      )
     )
   );
   wrap.appendChild(optsCard);
@@ -804,7 +905,7 @@ function renderSetup() {
       class:'btn btn-primary',
       disabled: !canStart,
       onclick:()=>{
-        state.draftOrder = buildSnakeOrder(state.users.map(u=>u.id), picksPerUser(state.picksByCategory));
+        state.draftOrder = buildSnakeOrder(state.users.map(u=>u.id), totalPicksPerUser(state.picksByCategory, state.alternatesPerUser));
         state.currentPickIndex = 0;
         state.picks = [];
         persist(); render();
@@ -957,7 +1058,8 @@ function renderDraft() {
   const picker = currentPicker();
   const round = Math.floor(state.currentPickIndex / state.users.length) + 1;
   const picksTaken = pickedPlayerIds();
-  const totalRounds = picksPerUser(state.picksByCategory);
+  const totalRounds = totalPicksPerUser(state.picksByCategory, state.alternatesPerUser);
+  const pickingAlternate = picker ? startersFilled(picker.id) : false;
 
   const wrap = el('section');
   wrap.appendChild(el('div',{class:'flex items-baseline justify-between flex-wrap gap-2 mb-5'},
@@ -965,7 +1067,7 @@ function renderDraft() {
       el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, 'Snake Draft'),
       el('h2',{class:'font-serif text-3xl text-masters-800 font-extrabold'}, t.name),
       el('div',{class:'text-gray-600 text-sm mt-1'},
-        `Pick ${state.currentPickIndex+1} of ${state.draftOrder.length} • Round ${round} of ${totalRounds}`)
+        `Pick ${state.currentPickIndex+1} of ${state.draftOrder.length} • Round ${round} of ${totalRounds}${pickingAlternate ? ' • Alternate round' : ''}`)
     ),
     el('div',{class:'flex items-center gap-2'},
       el('button',{class:'btn btn-ghost', onclick:undoLastPick, disabled: state.picks.length===0}, 'Undo Last'),
@@ -973,76 +1075,117 @@ function renderDraft() {
     )
   ));
 
-  // On the clock card
+  // On the clock card — pills show starter categories + alternates
+  const pickerSlotPills = () => {
+    if (!picker) return [];
+    const pills = CATEGORIES.map(c => {
+      const quota = categoryQuota(c.id);
+      if (quota === 0) return null;
+      const used = picksInCategory(picker.id, c.id).length;
+      const full = used >= quota;
+      return el('span',{class:'pill ' + (full ? 'pill-red' : 'pill-green')}, `${c.label} ${used}/${quota}`);
+    }).filter(Boolean);
+    const altQuota = categoryQuota('alternate');
+    if (altQuota > 0) {
+      const altUsed = alternatePicks(picker.id).length;
+      const full = altUsed >= altQuota;
+      pills.push(el('span',{class:'pill ' + (full ? 'pill-red' : 'pill-green')}, `Alternates ${altUsed}/${altQuota}`));
+    }
+    return pills;
+  };
+
   const onClock = el('div',{class:'card p-5 mb-5 border-masters-600 border-2'},
     el('div',{class:'flex items-center justify-between flex-wrap gap-3'},
       el('div',{},
         el('div',{class:'text-xs uppercase tracking-wider text-masters-700 font-bold'}, 'On the Clock'),
         el('div',{class:'font-serif text-3xl text-masters-800 mt-1'}, picker ? picker.name : '—'),
-        el('div',{class:'text-sm text-gray-600 mt-1'}, `Round ${round} • Pick #${state.currentPickIndex+1}`)
+        el('div',{class:'text-sm text-gray-600 mt-1'}, `Round ${round} • Pick #${state.currentPickIndex+1}${pickingAlternate ? ' • Alternate' : ''}`)
       ),
       el('div',{class:'text-right'},
         el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, 'Slots for '+ (picker?.name||'')),
-        el('div',{class:'mt-1 flex flex-wrap gap-1 justify-end'},
-          ...(picker ? CATEGORIES.map(c => {
-            const quota = categoryQuota(c.id);
-            if (quota === 0) return null;
-            const used = picksInCategory(picker.id, c.id).length;
-            const full = used >= quota;
-            return el('span',{class:'pill ' + (full ? 'pill-red' : 'pill-green')}, `${c.label} ${used}/${quota}`);
-          }).filter(Boolean) : [])
-        )
+        el('div',{class:'mt-1 flex flex-wrap gap-1 justify-end'}, ...pickerSlotPills())
       )
     )
   );
   wrap.appendChild(onClock);
 
-  // Category dropdowns
+  // Dropdowns: category pickers while any starter slot is open, then a single alternate picker.
   if (picker) {
-    const grid = el('div',{class:'grid grid-cols-1 sm:grid-cols-2 gap-4'});
-    CATEGORIES.forEach(c => {
-      const quota = categoryQuota(c.id);
-      if (quota === 0) return;
-      const usedCount = picksInCategory(picker.id, c.id).length;
-      const full = usedCount >= quota;
+    const playerLabel = (p) => {
+      const rank = (p.owgr && p.owgr < 500) ? `#${p.owgr}` : 'NR';
+      const am = p.amateur ? ' (Am)' : '';
+      const flag = flagOf(p.country);
+      return `${rank} ${p.name}${am} ${flag ? flag + ' ' : ''}(${p.country})`;
+    };
+
+    if (!pickingAlternate) {
+      const grid = el('div',{class:'grid grid-cols-1 sm:grid-cols-2 gap-4'});
+      CATEGORIES.forEach(c => {
+        const quota = categoryQuota(c.id);
+        if (quota === 0) return;
+        const usedCount = picksInCategory(picker.id, c.id).length;
+        const full = usedCount >= quota;
+        const eligible = state.field
+          .filter(p => isPlayerInCategory(p, c.id, state.tournamentId))
+          .filter(p => !picksTaken.has(p.id))
+          .sort((a,b) => a.owgr - b.owgr);
+        const sel = el('select',{disabled: full || eligible.length===0, id:'sel_'+c.id},
+          el('option',{value:''}, full ? 'Slots filled' : (eligible.length===0 ? 'No eligible players' : 'Select a player…')),
+          ...eligible.map(p => el('option',{value:p.id}, playerLabel(p)))
+        );
+        const btn = el('button',{
+          class:'btn btn-primary mt-3 w-full',
+          disabled: full || eligible.length===0,
+          onclick:()=>{
+            const val = sel.value;
+            if (!val) return toast('Choose a player first.');
+            const err = makePick(picker.id, c.id, val);
+            if (err) return toast(err);
+            persist(); render();
+          }
+        }, full ? 'Filled' : `Pick ${c.label} (${usedCount+1}/${quota})`);
+        grid.appendChild(el('div',{class:'card p-4'},
+          el('div',{class:'flex items-center justify-between'},
+            el('div',{class:'font-serif text-lg text-masters-800'}, c.label + (quota>1 ? ` × ${quota}` : '')),
+            el('div',{class:'text-xs text-gray-500'}, `${eligible.length} eligible`)
+          ),
+          el('div',{class:'text-xs text-gray-600 mb-2'}, c.help),
+          sel, btn
+        ));
+      });
+      wrap.appendChild(grid);
+    } else {
+      // Alternate picker — any remaining player in the field
+      const altUsed = alternatePicks(picker.id).length;
+      const altQuota = categoryQuota('alternate');
+      const full = altUsed >= altQuota;
       const eligible = state.field
-        .filter(p => isPlayerInCategory(p, c.id, state.tournamentId))
         .filter(p => !picksTaken.has(p.id))
         .sort((a,b) => a.owgr - b.owgr);
-
-      const playerLabel = (p) => {
-        const rank = (p.owgr && p.owgr < 500) ? `#${p.owgr}` : 'NR';
-        const am = p.amateur ? ' (Am)' : '';
-        const flag = flagOf(p.country);
-        return `${rank} ${p.name}${am} ${flag ? flag + ' ' : ''}(${p.country})`;
-      };
-      const sel = el('select',{disabled: full || eligible.length===0, id:'sel_'+c.id},
-        el('option',{value:''}, full ? 'Slots filled' : (eligible.length===0 ? 'No eligible players' : 'Select a player…')),
+      const sel = el('select',{disabled: full || eligible.length===0, id:'sel_alternate'},
+        el('option',{value:''}, full ? 'Alternate slots filled' : (eligible.length===0 ? 'No players remaining' : 'Select a player…')),
         ...eligible.map(p => el('option',{value:p.id}, playerLabel(p)))
       );
-
       const btn = el('button',{
         class:'btn btn-primary mt-3 w-full',
         disabled: full || eligible.length===0,
         onclick:()=>{
           const val = sel.value;
           if (!val) return toast('Choose a player first.');
-          const err = makePick(picker.id, c.id, val);
+          const err = makePick(picker.id, 'alternate', val);
           if (err) return toast(err);
           persist(); render();
         }
-      }, full ? 'Filled' : `Pick ${c.label} (${usedCount+1}/${quota})`);
-
-      grid.appendChild(el('div',{class:'card p-4'},
+      }, full ? 'Filled' : `Pick Alternate (${altUsed+1}/${altQuota})`);
+      wrap.appendChild(el('div',{class:'card p-4'},
         el('div',{class:'flex items-center justify-between'},
-          el('div',{class:'font-serif text-lg text-masters-800'}, c.label + (quota>1 ? ` × ${quota}` : '')),
-          el('div',{class:'text-xs text-gray-500'}, `${eligible.length} eligible`)
+          el('div',{class:'font-serif text-lg text-masters-800'}, `Alternate${altQuota>1?` × ${altQuota}`:''}`),
+          el('div',{class:'text-xs text-gray-500'}, `${eligible.length} remaining`)
         ),
-        el('div',{class:'text-xs text-gray-600 mb-2'}, c.help),
+        el('div',{class:'text-xs text-gray-600 mb-2'}, 'Backup pick from any category. Not counted unless you swap them into a starter slot on the scoreboard.'),
         sel, btn
       ));
-    });
-    wrap.appendChild(grid);
+    }
   } else {
     wrap.appendChild(el('div',{class:'card p-5 text-center'},'Draft complete.'));
   }
@@ -1060,12 +1203,13 @@ function renderDraftBoard() {
     el('div',{class:'text-xs text-gray-500'}, `${state.picks.length}/${state.draftOrder.length} picks made`)
   ));
 
-  // Group picks by user — render one row per quota slot so "Top 10 × 2" shows twice.
-  const totalPicks = picksPerUser(state.picksByCategory);
+  // Group picks by user — render starter rows, then alternates section.
+  const totalPicks = totalPicksPerUser(state.picksByCategory, state.alternatesPerUser);
   const grid = el('div',{class:'grid grid-cols-1 md:grid-cols-2 gap-4'});
   state.users.forEach(u => {
     const picks = userPicks(u.id);
     const rows = [];
+    // Starter rows by category
     CATEGORIES.forEach(c => {
       const quota = categoryQuota(c.id);
       const filled = picksInCategory(u.id, c.id);
@@ -1083,6 +1227,24 @@ function renderDraftBoard() {
         ));
       }
     });
+    // Alternates section
+    const altQuota = categoryQuota('alternate');
+    if (altQuota > 0) {
+      const filledAlts = alternatePicks(u.id);
+      rows.push(el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold pt-2 border-t border-gray-200 mt-2'},'Alternates'));
+      for (let i = 0; i < altQuota; i++) {
+        const pick = filledAlts[i];
+        const player = pick ? state.field.find(f => f.id === pick.playerId) : null;
+        const flag = player ? flagOf(player.country) : '';
+        rows.push(el('div',{class:'flex items-center justify-between py-1.5'},
+          el('div',{class:'text-sm text-gray-500'}, `Alt ${i+1}`),
+          el('div',{class:'text-sm font-medium text-gray-800 text-right'},
+            player ? `${flag ? flag + ' ' : ''}${player.name}${player.amateur ? ' (Am)' : ''} ` : '—',
+            player ? el('span',{class:'text-gray-500 text-xs'}, (player.owgr && player.owgr < 500) ? `#${player.owgr}` : 'NR') : null
+          )
+        ));
+      }
+    }
     grid.appendChild(el('div',{class:'border border-gray-200 rounded-xl p-3'},
       el('div',{class:'flex items-center justify-between mb-2'},
         el('div',{class:'font-serif text-lg text-masters-800'}, u.name),
@@ -1108,58 +1270,60 @@ function renderScoreboard() {
     ),
     el('div',{class:'flex items-center gap-2'},
       el('button',{class:'btn btn-primary', onclick:syncScores},'↻ Sync Scores'),
-      el('button',{class:'btn btn-ghost', onclick:()=>{ const url = buildShareUrl(); navigator.clipboard.writeText(url); toast('Share URL copied.'); }}, 'Share'),
+      el('button',{class:'btn btn-ghost', onclick:openShareModal}, 'Share'),
       el('button',{class:'btn btn-ghost', onclick:()=>{ state.draftOrder=[]; state.picks=[]; state.currentPickIndex=0; persist(); render(); }}, 'Re-draft')
     )
   ));
 
   const rows = orderedStandings();
-
-  // Standings summary
   const lead = rows[0];
-  const summary = el('div',{class:'card p-4 mb-5 flex flex-wrap items-center justify-between gap-3'},
-    el('div',{},
-      el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'},'Current Leader'),
-      el('div',{class:'font-serif text-2xl text-masters-800'}, lead?.user?.name || '—'),
-      el('div',{class:'text-sm text-gray-600'},
-        lead?.ownsWinner ? 'Holds tournament champion.' :
-        lead ? `${lead.cuts} cuts made • Total ${fmtScore(lead.total)}` : ''
-      )
-    ),
-    el('div',{class:'flex items-center gap-2'},
-      ...rows.map((r,i) => el('div',{class:'text-center min-w-[90px] border border-gray-200 rounded-lg p-2 '+(i===0?'winner-glow':'')},
-        el('div',{class:'text-xs text-gray-500'}, `#${i+1}`),
-        el('div',{class:'font-semibold text-sm'}, r.user.name),
-        el('div',{class:'text-xs text-gray-600'}, `Cuts ${r.cuts} • ${fmtScore(r.total)}`)
-      ))
-    )
-  );
-  wrap.appendChild(summary);
+  const hasScoring = !!state.lastSync;
+
+  // Winner banner (shown when we have synced scores — headline reflects active rule in play)
+  if (hasScoring && lead) {
+    const reason =
+      lead.ownsWinner ? 'Picked the tournament champion' :
+      (rows.length > 1 && lead.cuts > rows[1].cuts) ? `Most cuts made (${lead.cuts})` :
+      `Lowest cumulative score (${fmtScore(lead.total)})`;
+    wrap.appendChild(el('div',{
+      class:'rounded-xl p-4 mb-5 text-center text-white font-serif text-2xl',
+      style:'background:linear-gradient(135deg,#0b4d2c 0%,#1a7a46 100%);box-shadow:0 4px 14px rgba(11,77,44,.25)'
+    }, `🏆 ${lead.user.name} wins — ${reason}`));
+  }
 
   // Team cards
   const grid = el('div',{class:'grid grid-cols-1 md:grid-cols-2 gap-5'});
   rows.forEach((row,idx) => {
-    const team = el('div',{class:'card p-4 ' + (idx===0 ? 'winner-glow' : '')});
-    team.appendChild(el('div',{class:'flex items-center justify-between mb-3'},
+    const isWinner = idx === 0 && hasScoring;
+    const team = el('div',{class:'card p-4 ' + (isWinner ? 'winner-glow' : ''), style: isWinner ? 'border:2px solid #1a7a46' : ''});
+
+    // Header with trophy badge for winner
+    const header = el('div',{class:'flex items-center justify-between mb-3'},
       el('div',{},
-        el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, `Team • Rank #${idx+1}`),
+        isWinner
+          ? el('div',{class:'inline-flex items-center gap-1 text-xs uppercase tracking-wider font-bold rounded-full px-2 py-0.5 mb-1', style:'background:#0b4d2c;color:#fff'}, '🏆 Winner')
+          : el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, `Team • Rank #${idx+1}`),
         el('div',{class:'font-serif text-2xl text-masters-800'}, row.user.name)
       ),
       el('div',{class:'text-right'},
-        el('div',{class:'text-xs text-gray-500'}, 'Total'),
         el('div',{class:`text-2xl ${scoreClass(row.total)}`}, fmtScore(row.total)),
-        el('div',{class:'text-xs text-gray-500'}, `${row.cuts} made cut`)
+        el('div',{class:'text-xs text-gray-500'}, `${row.cuts}/${row.picks.length} made cut`)
       )
-    ));
-    // Player rows — one row per quota slot; duplicates like Top 10 ×2 appear twice.
+    );
+    team.appendChild(header);
+
+    // Build alternate-options map used by starter swap dropdowns (alternates not yet swapped out)
+    const alternateOptions = row.alternates;
+
+    // Starter rows — one row per quota slot; duplicates like Top 10 ×2 appear twice.
     const table = el('table',{class:'w-full text-sm'});
     table.appendChild(el('thead',{class:'text-gray-500'},
       el('tr',{},
-        el('th',{class:'text-left py-1 pr-2'},'Category'),
         el('th',{class:'text-left py-1 pr-2'},'Player'),
-        el('th',{class:'text-left py-1 pr-2'},'Pos'),
+        el('th',{class:'text-left py-1 pr-2'},'Category'),
         el('th',{class:'text-right py-1 pr-2'},'Score'),
-        el('th',{class:'text-center py-1'},'Cut')
+        el('th',{class:'text-center py-1 pr-2'},'Cut'),
+        el('th',{class:'text-right py-1'},'Sub')
       )));
     const tbody = el('tbody',{});
     CATEGORIES.forEach(c => {
@@ -1168,28 +1332,73 @@ function renderScoreboard() {
       const slotPicks = row.picks.filter(ps => ps.pick.category === c.id);
       for (let i = 0; i < quota; i++) {
         const ps = slotPicks[i];
-        const label = quota > 1 ? `${c.label} ${i+1}` : c.label;
+        const label = quota > 1 ? `${c.label} Pick #${i+1}` : c.label;
         const s = ps?.score || {};
         const cutCell =
           s.madeCut === true  ? el('span',{class:'tick'},'✓') :
           s.madeCut === false ? el('span',{class:'text-flag font-bold'},'—') :
           el('span',{class:'dash'},'–');
+
+        // Build swap dropdown for this starter (swap with any alternate)
+        const swapSel = el('select',{
+          style:'padding:4px 8px;font-size:12px',
+          onchange:(e)=>{
+            const altOverall = Number(e.target.value);
+            if (!altOverall || !ps?.pick) { e.target.value=''; return; }
+            swapPicks(row.user.id, ps.pick.overall, altOverall);
+          }
+        },
+          el('option',{value:''},'Swap'),
+          ...alternateOptions.map(aps => {
+            const ap = aps.player;
+            const label = ap ? `${flagOf(ap.country) || ''} ${ap.name}` : '—';
+            return el('option',{value:String(aps.pick.overall)}, label);
+          })
+        );
+
         tbody.appendChild(el('tr',{class:'border-t border-gray-100'},
-          el('td',{class:'py-2 pr-2 text-gray-500'}, label),
           el('td',{class:'py-2 pr-2'},
             el('div',{class:'font-medium'},
               (ps?.player ? `${flagOf(ps.player.country) ? flagOf(ps.player.country) + ' ' : ''}${ps.player.name}${ps.player.amateur ? ' (Am)' : ''}` : '—')
-            ),
-            el('div',{class:'text-xs text-gray-500'}, ps?.player ? `${(ps.player.owgr && ps.player.owgr < 500) ? '#'+ps.player.owgr : 'NR'} • ${ps.player.country}` : '')
+            )
           ),
-          el('td',{class:'py-2 pr-2 text-gray-600'}, s.pos || '—'),
+          el('td',{class:'py-2 pr-2 text-gray-500'}, label),
           el('td',{class:`py-2 pr-2 text-right ${scoreClass(s.total)}`}, fmtScore(s.total)),
-          el('td',{class:'py-2 text-center'}, cutCell)
+          el('td',{class:'py-2 pr-2 text-center'}, cutCell),
+          el('td',{class:'py-2 text-right'}, ps && alternateOptions.length ? swapSel : el('span',{class:'text-gray-300 text-xs'},'—'))
         ));
       }
     });
     table.appendChild(tbody);
     team.appendChild(table);
+
+    // Alternates section (not counted in team score)
+    if (row.alternates.length) {
+      team.appendChild(el('div',{class:'mt-3 pt-3 border-t border-gray-200'},
+        el('div',{class:'text-xs font-semibold text-gray-700 mb-1'},
+          'Alternates ',
+          el('span',{class:'text-gray-500 font-normal'},'(not counted in team score)')
+        ),
+        ...row.alternates.map(aps => {
+          const ap = aps.player;
+          const s = aps.score || {};
+          const cutCell =
+            s.madeCut === true  ? el('span',{class:'tick'},'✓') :
+            s.madeCut === false ? el('span',{class:'text-flag font-bold'},'—') :
+            el('span',{class:'dash'},'–');
+          return el('div',{class:'flex items-center justify-between py-1 text-sm'},
+            el('div',{class:'text-gray-700'},
+              ap ? `${flagOf(ap.country) ? flagOf(ap.country) + ' ' : ''}${ap.name}${ap.amateur ? ' (Am)' : ''}` : '—'
+            ),
+            el('div',{class:'flex items-center gap-3'},
+              el('span',{class:`${scoreClass(s.total)} text-sm`}, fmtScore(s.total)),
+              el('span',{class:'w-4 text-center'}, cutCell)
+            )
+          );
+        })
+      ));
+    }
+
     grid.appendChild(team);
   });
   wrap.appendChild(grid);
@@ -1204,41 +1413,79 @@ function renderScoreboard() {
 
 // ---------- SHARE ----------
 function buildShareUrl() {
-  const payload = { ...state };
-  // drop large fields that can be rebuilt or are transient
+  // Only ship players referenced by picks or scores — full field is 60+ rows and
+  // blows up the URL past practical messaging-app limits.
+  const referenced = new Set();
+  (state.picks || []).forEach(p => referenced.add(p.playerId));
+  Object.keys(state.scores || {}).forEach(id => referenced.add(id));
+  const slimField = (state.field || []).filter(p => referenced.has(p.id));
+
   const slim = {
-    tournamentId: payload.tournamentId,
-    users: payload.users,
-    picksPerUser: payload.picksPerUser,
-    draftOrder: payload.draftOrder,
-    currentPickIndex: payload.currentPickIndex,
-    picks: payload.picks,
-    field: payload.field, // include so dropdowns match on join
-    scores: payload.scores,
-    lastSync: payload.lastSync
+    v: 1,
+    seedVersion: SEED_VERSION,
+    tournamentId: state.tournamentId,
+    year: state.year,
+    users: state.users,
+    picksByCategory: state.picksByCategory,
+    alternatesPerUser: state.alternatesPerUser,
+    draftOrder: state.draftOrder,
+    currentPickIndex: state.currentPickIndex,
+    picks: state.picks,
+    field: slimField,
+    scores: state.scores,
+    lastSync: state.lastSync
   };
   const encoded = encodePayload(slim);
   const base = window.location.href.split('#')[0];
   return `${base}#g=${encoded}`;
 }
 
+function openShareModal() {
+  if (!state.tournamentId) { toast('Pick a tournament first.'); return; }
+  const url = buildShareUrl();
+  const modal = $('#share-modal');
+  const ta = $('#share-modal-url');
+  const meta = $('#share-modal-meta');
+  ta.value = url;
+  const kb = (url.length / 1024).toFixed(1);
+  meta.textContent = `${url.length.toLocaleString()} characters (~${kb} KB). Long links sometimes get truncated in SMS or email — paste into Slack, iMessage, or Discord for best results.`;
+  modal.classList.add('show');
+  // Select after paint so the native select happens after layout
+  setTimeout(() => { ta.focus(); ta.select(); }, 30);
+  // Also attempt silent clipboard copy as a convenience
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(url).catch(()=>{});
+  }
+}
+function closeShareModal() { $('#share-modal').classList.remove('show'); }
+function copyShareUrl() {
+  const ta = $('#share-modal-url');
+  const url = ta.value;
+  const done = () => toast('Link copied.');
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(url).then(done).catch(() => { ta.select(); document.execCommand('copy'); done(); });
+  } else {
+    ta.select(); document.execCommand('copy'); done();
+  }
+}
+$('#share-modal-close').addEventListener('click', closeShareModal);
+$('#share-modal-copy').addEventListener('click', copyShareUrl);
+$('#share-modal').addEventListener('click', (e) => { if (e.target.id === 'share-modal') closeShareModal(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeShareModal(); });
+
 // ---------- NAV / WIRING ----------
 $('#nav-home').addEventListener('click', () => {
   if (state.picks.length && !confirm('Leave this game and return to home? Your current picks stay saved.')) return;
   state.tournamentId = null; persist(); render();
 });
-$('#nav-share').addEventListener('click', () => {
-  if (!state.tournamentId) return toast('Pick a tournament first.');
-  const url = buildShareUrl();
-  navigator.clipboard.writeText(url).then(() => toast('Share URL copied to clipboard.'));
-});
+$('#nav-share').addEventListener('click', openShareModal);
 $('#nav-reset').addEventListener('click', resetAll);
 
 window.addEventListener('hashchange', () => {
   const h = window.location.hash;
   if (h && h.startsWith('#g=')) {
     const p = decodePayload(h.slice(3));
-    if (p) { persist(p); history.replaceState(null,'',window.location.pathname); render(); toast('Loaded shared game.'); }
+    if (p) { hydrateSharedPayload(p); persist(p); history.replaceState(null,'',window.location.pathname); render(); toast('Loaded shared game.'); }
   }
 });
 

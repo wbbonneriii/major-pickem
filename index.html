@@ -103,14 +103,18 @@
 
 // ---------- CONSTANTS ----------
 const LS_KEY = 'major-pickem:v1';
+// Bump when SEED_FIELD changes so existing users get the refreshed roster on next load.
+const SEED_VERSION = 3;
 
 // ESPN event IDs change each year; these can be updated here without code changes elsewhere.
 // When the event is live/recent, ESPN's generic "pga/leaderboard" returns the active event automatically.
+// 2026 ESPN event IDs (discovered via sports.core.api.espn.com/v2/sports/golf/leagues/pga/events).
+// Update yearly — the sync endpoints accept ?event={id} to pin to a specific tournament.
 const TOURNAMENTS = [
-  { id:'masters',  name:'The Masters',             shortName:'Masters',   venue:'Augusta National Golf Club',       location:'Augusta, GA',    month:'April',   color:'#006747', accent:'#b38b00' },
-  { id:'pga',      name:'PGA Championship',         shortName:'PGA',       venue:'Host Club',                        location:'Varies',         month:'May',     color:'#1b365d', accent:'#c9a227' },
-  { id:'usopen',   name:'U.S. Open',                shortName:'US Open',   venue:'USGA Host Course',                 location:'Varies',         month:'June',    color:'#8f1b1b', accent:'#0b2545' },
-  { id:'theopen',  name:'The Open Championship',    shortName:'The Open',  venue:'R&A Host Course',                  location:'United Kingdom', month:'July',    color:'#2c2c2c', accent:'#d4af37' }
+  { id:'masters',  name:'The Masters',             shortName:'Masters',   venue:'Augusta National Golf Club', location:'Augusta, GA',    month:'April',   color:'#006747', accent:'#b38b00', espnEventId:'401811941' },
+  { id:'pga',      name:'PGA Championship',         shortName:'PGA',       venue:'Aronimink Golf Club',        location:'Newtown Square, PA', month:'May', color:'#1b365d', accent:'#c9a227', espnEventId:'401811947' },
+  { id:'usopen',   name:'U.S. Open',                shortName:'US Open',   venue:'Shinnecock Hills',           location:'Southampton, NY', month:'June',    color:'#8f1b1b', accent:'#0b2545', espnEventId:'401811952' },
+  { id:'theopen',  name:'The Open Championship',    shortName:'The Open',  venue:'Royal Birkdale',             location:'Southport, England', month:'July', color:'#2c2c2c', accent:'#d4af37', espnEventId:'401811957' }
 ];
 
 // Category metadata (source of truth for dropdown rendering)
@@ -199,6 +203,7 @@ const DEFAULT_PICKS_BY_CATEGORY = { top10: 2, international: 1, nomajorwins: 1, 
 const picksPerUser = (pbc) => Object.values(pbc).reduce((a,b)=>a+b, 0);
 
 const DEFAULT_STATE = () => ({
+  seedVersion: SEED_VERSION,
   tournamentId: null,         // which Major this game is for
   users: [],                  // [{id, name}]
   picksByCategory: { ...DEFAULT_PICKS_BY_CATEGORY },
@@ -231,9 +236,13 @@ function loadState() {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      // Migrate old shape (picksPerUser only) to picksByCategory
       if (!parsed.picksByCategory) parsed.picksByCategory = { ...DEFAULT_PICKS_BY_CATEGORY };
       delete parsed.picksPerUser;
+      // Auto-refresh roster when SEED_FIELD changes between releases (preserves picks/users/scores).
+      if (parsed.seedVersion !== SEED_VERSION) {
+        parsed.field = SEED_FIELD;
+        parsed.seedVersion = SEED_VERSION;
+      }
       return { ...DEFAULT_STATE(), ...parsed };
     }
   } catch (e) {}
@@ -440,34 +449,52 @@ function orderedStandings() {
 }
 
 // ---------- ESPN SYNC ----------
-const ESPN_ENDPOINTS = [
-  'https://site.api.espn.com/apis/site/v2/sports/golf/leaderboard',
-  'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard'
-];
-async function fetchEspn() {
-  let lastErr;
-  for (const url of ESPN_ENDPOINTS) {
+// ESPN tournament-scoped fetch. `?event={id}` on /sports/golf/leaderboard pins to a specific
+// event even weeks after it ends; /sports/golf/pga/scoreboard ignores ?event (returns current
+// week) so it's only useful as a "what's happening now" fallback.
+async function fetchEspnForTournament(tournamentId) {
+  const t = TOURNAMENTS.find(x => x.id === tournamentId);
+  const urls = [];
+  if (t?.espnEventId) urls.push(`https://site.api.espn.com/apis/site/v2/sports/golf/leaderboard?event=${t.espnEventId}`);
+  urls.push('https://site.api.espn.com/apis/site/v2/sports/golf/leaderboard'); // current-event fallback
+  urls.push('https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard');
+  const expected = t?.name || '';
+  let lastErr, fallbackData;
+  for (const url of urls) {
     try {
       const res = await fetch(url, { cache:'no-store' });
       if (!res.ok) { lastErr = new Error(`HTTP ${res.status} from ${url}`); continue; }
       const data = await res.json();
-      if (data?.events?.[0]?.competitions?.[0]?.competitors?.length) return data;
-      lastErr = new Error('Empty competitors');
+      const comps = data?.events?.[0]?.competitions?.[0]?.competitors || [];
+      if (!comps.length) { lastErr = new Error('Empty competitors'); continue; }
+      const evName = (data?.events?.[0]?.name || '').toLowerCase();
+      const want = expected.toLowerCase().replace('the ','').replace(' championship','').trim();
+      // First URL is tournament-scoped; accept it unconditionally.
+      if (url.includes('?event=')) return { data, tournamentMatch: true };
+      // Fallbacks: only accept if the name matches (e.g. you're syncing on Masters week).
+      if (want && evName.includes(want)) return { data, tournamentMatch: true };
+      fallbackData = fallbackData || { data, tournamentMatch: false };
     } catch (e) { lastErr = e; }
   }
+  if (fallbackData) return fallbackData;
   throw lastErr || new Error('ESPN unreachable');
 }
 
 async function syncScores() {
   if (!state.tournamentId) return;
-  toast('Fetching ESPN leaderboard…');
+  const t = TOURNAMENTS.find(x => x.id === state.tournamentId);
+  toast(`Fetching ${t?.shortName || 'event'} leaderboard…`);
   try {
-    const data = await fetchEspn();
+    const { data, tournamentMatch } = await fetchEspnForTournament(state.tournamentId);
+    const evName = data?.events?.[0]?.name || 'event';
+    if (!tournamentMatch) {
+      const ok = confirm(`ESPN returned "${evName}", not ${t?.name}. Apply these scores anyway?`);
+      if (!ok) return toast('Sync cancelled.');
+    }
     applyEspnData(data);
     state.lastSync = new Date().toISOString();
     persist();
     render();
-    const evName = data?.events?.[0]?.name || 'event';
     toast(`Scores synced (${evName}).`);
   } catch (e) {
     console.warn('ESPN sync failed:', e);
@@ -806,32 +833,42 @@ function countryCode(raw) {
 }
 
 async function pullFieldFromEspn() {
-  toast('Loading field from ESPN…');
+  if (!state.tournamentId) return toast('Pick a tournament first.');
+  const t = TOURNAMENTS.find(x => x.id === state.tournamentId);
+  toast(`Loading ${t?.shortName} field from ESPN…`);
   try {
-    const data = await fetchEspn();
+    const { data, tournamentMatch } = await fetchEspnForTournament(state.tournamentId);
+    const evName = data?.events?.[0]?.name || 'event';
+    if (!tournamentMatch) {
+      const ok = confirm(`ESPN returned "${evName}", not ${t?.name}. Import this field anyway?`);
+      if (!ok) return toast('Field load cancelled.');
+    }
     const comps = data?.events?.[0]?.competitions?.[0]?.competitors || [];
     if (!comps.length) throw new Error('No competitors returned');
-    const existingIds = new Set(state.field.map(p=>p.id));
-    let added = 0;
-    comps.forEach((c,i) => {
+
+    // Preserve any existing firstTimerAt/majorsWon metadata (keyed by normalized name).
+    const prevByName = new Map();
+    state.field.forEach(p => prevByName.set(normalizeName(p.name), p));
+
+    // Replace the field entirely with this tournament's competitors — this is what the user expects.
+    const newField = comps.map((c,i) => {
       const ath = c.athlete || {};
-      const name = ath.displayName || ath.fullName;
-      if (!name) return;
+      const name = ath.displayName || ath.fullName || `Player ${i+1}`;
+      const prior = prevByName.get(normalizeName(name));
       const id = 'espn_' + (ath.id || normalizeName(name).replace(/\s+/g,'_'));
-      if (existingIds.has(id)) return;
-      state.field.push({
+      return {
         id,
         name,
-        country: countryCode(ath.flag?.alt || ath.birthPlace?.country),
+        country: countryCode(ath.flag?.alt || ath.birthPlace?.country || prior?.country),
         owgr: (i+1),
-        majorsWon: [],
-        firstTimerAt: []
-      });
-      added++;
+        majorsWon: prior?.majorsWon || [],
+        firstTimerAt: prior?.firstTimerAt || [],
+        amateur: !!(c.amateur || prior?.amateur)
+      };
     });
+    state.field = newField;
     persist(); render();
-    const evName = data?.events?.[0]?.name || 'event';
-    toast(`Field loaded from ${evName} (+${added} new). Verify OWGR/majors before drafting.`);
+    toast(`Loaded ${comps.length} players from ${evName}. Verify OWGR / majors / first-timers before drafting.`);
   } catch (e) {
     console.warn('Pull field failed:', e);
     toast('ESPN field fetch failed. See console.');

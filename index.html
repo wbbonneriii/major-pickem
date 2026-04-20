@@ -126,7 +126,7 @@
 // ---------- CONSTANTS ----------
 const LS_KEY = 'major-pickem:v1';
 // Bump when SEED_FIELD changes so existing users get the refreshed roster on next load.
-const SEED_VERSION = 6;
+const SEED_VERSION = 7;
 
 // Year-independent tournament metadata.
 const TOURNAMENTS = [
@@ -231,6 +231,8 @@ const SEED_FIELD = [
   { id:'p_koepka',      name:'Brooks Koepka',      country:'USA', owgr:55, majorsWon:['pga','usopen'],         firstTimerAt:[] },   // LIV
   { id:'p_smith',       name:'Cameron Smith',      country:'AUS', owgr:65, majorsWon:['theopen'],              firstTimerAt:[] },   // LIV
   { id:'p_rahm',        name:'Jon Rahm',           country:'ESP', owgr:80, majorsWon:['usopen','masters'],     firstTimerAt:[] },   // LIV — OWGR deflated
+  { id:'p_reed',        name:'Patrick Reed',       country:'USA', owgr:70, majorsWon:['masters'],              firstTimerAt:[] },   // LIV — OWGR deflated
+  { id:'p_siwoo',       name:'Si Woo Kim',         country:'KOR', owgr:48, majorsWon:[],                       firstTimerAt:[] },
   { id:'p_bezuidenhout',name:'Christiaan Bezuidenhout', country:'RSA', owgr:90, majorsWon:[],                  firstTimerAt:[] },
 
   // ===== 2026 Masters first-timers (22 total: 17 pros + 5 amateurs + 1 int'l am) =====
@@ -313,7 +315,9 @@ function loadState() {
         parsed.field = SEED_FIELD;
         parsed.seedVersion = SEED_VERSION;
       }
-      return { ...DEFAULT_STATE(), ...parsed };
+      const merged = { ...DEFAULT_STATE(), ...parsed };
+      ensureDraftOrderCovers(merged);
+      return merged;
     }
   } catch (e) {}
   return DEFAULT_STATE();
@@ -333,6 +337,7 @@ function hydrateSharedPayload(payload) {
   payload.seedVersion = SEED_VERSION;
   if (!payload.picksByCategory) payload.picksByCategory = { ...DEFAULT_PICKS_BY_CATEGORY };
   if (payload.alternatesPerUser == null) payload.alternatesPerUser = DEFAULT_ALTERNATES_PER_USER;
+  ensureDraftOrderCovers(payload);
   return payload;
 }
 function resetAll() {
@@ -428,6 +433,29 @@ function buildSnakeOrder(userIds, rounds) {
     order.push(...roundIds);
   }
   return order;
+}
+
+// Self-heal drafts started before alternates existed: if draftOrder is short of
+// what the current picksByCategory + alternatesPerUser requires, append more
+// snake rounds so the existing picks stay in place and the remaining alternate
+// slots become draftable.
+function ensureDraftOrderCovers(s) {
+  if (!s || !s.users || !s.users.length) return;
+  if (!s.draftOrder || !s.draftOrder.length) return;
+  const pbc = s.picksByCategory || DEFAULT_PICKS_BY_CATEGORY;
+  const alts = s.alternatesPerUser ?? 0;
+  const need = s.users.length * totalPicksPerUser(pbc, alts);
+  if (s.draftOrder.length >= need) return;
+  const userIds = s.users.map(u => u.id);
+  const perRound = userIds.length;
+  const completedRounds = Math.floor(s.draftOrder.length / perRound);
+  const totalRounds = Math.ceil(need / perRound);
+  const extended = s.draftOrder.slice(0, completedRounds * perRound);
+  for (let r = completedRounds; r < totalRounds; r++) {
+    const roundIds = r % 2 === 0 ? userIds : [...userIds].reverse();
+    extended.push(...roundIds);
+  }
+  s.draftOrder = extended.slice(0, need);
 }
 
 function isPlayerInCategory(player, categoryId, tournamentId) {
@@ -1413,12 +1441,25 @@ function renderScoreboard() {
 
 // ---------- SHARE ----------
 function buildShareUrl() {
-  // Only ship players referenced by picks or scores — full field is 60+ rows and
-  // blows up the URL past practical messaging-app limits.
-  const referenced = new Set();
-  (state.picks || []).forEach(p => referenced.add(p.playerId));
-  Object.keys(state.scores || {}).forEach(id => referenced.add(id));
-  const slimField = (state.field || []).filter(p => referenced.has(p.id));
+  // Only ship what's needed to render the recipient's draft board + scoreboard.
+  // State.scores contains every ESPN-synced golfer (60+), and state.field mirrors
+  // that — including them all blows the URL past 30KB, which destination apps
+  // silently truncate. We only need entries for players that appear in picks
+  // (plus the winner, so the "champion" headline renders).
+  const picked = new Set((state.picks || []).map(p => p.playerId));
+  let winnerId = null;
+  Object.entries(state.scores || {}).forEach(([id, s]) => { if (s && s.isWinner) winnerId = id; });
+  const keep = new Set(picked);
+  if (winnerId) keep.add(winnerId);
+
+  const slimField = (state.field || [])
+    .filter(p => keep.has(p.id))
+    .map(p => ({ id:p.id, name:p.name, country:p.country, owgr:p.owgr, amateur: !!p.amateur }));
+  const slimScores = {};
+  Object.entries(state.scores || {}).forEach(([id, s]) => {
+    if (!keep.has(id)) return;
+    slimScores[id] = { total:s.total, today:s.today, thru:s.thru, madeCut:s.madeCut, pos:s.pos, isWinner: !!s.isWinner };
+  });
 
   const slim = {
     v: 1,
@@ -1432,7 +1473,7 @@ function buildShareUrl() {
     currentPickIndex: state.currentPickIndex,
     picks: state.picks,
     field: slimField,
-    scores: state.scores,
+    scores: slimScores,
     lastSync: state.lastSync
   };
   const encoded = encodePayload(slim);

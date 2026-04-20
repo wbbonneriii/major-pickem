@@ -392,13 +392,30 @@ function hydrateSharedPayload(payload) {
   payload.seedVersion = SEED_VERSION;
   if (!payload.picksByCategory) payload.picksByCategory = { ...DEFAULT_PICKS_BY_CATEGORY };
   if (payload.alternatesPerUser == null) payload.alternatesPerUser = DEFAULT_ALTERNATES_PER_USER;
+  if (!payload.gameId) payload.gameId = 'g_shared_' + Math.random().toString(36).slice(2,9);
+  if (!payload.createdAt) payload.createdAt = new Date().toISOString();
+  if (!payload.gameName && payload.tournamentId) {
+    const t = TOURNAMENTS.find(x => x.id === payload.tournamentId);
+    payload.gameName = `${t?.shortName || 'Shared'} (shared)`;
+  }
   ensureDraftOrderCovers(payload);
+  // Mirror into the games store so the shared game appears on the recipient's home page.
+  try {
+    const raw = localStorage.getItem(GAMES_KEY);
+    const games = raw ? JSON.parse(raw) : {};
+    games[payload.gameId] = payload;
+    localStorage.setItem(GAMES_KEY, JSON.stringify(games));
+  } catch (_) {}
   return payload;
 }
 function resetAll() {
   if (!confirm('Reset this game and clear all picks? This cannot be undone.')) return;
-  localStorage.removeItem(LS_KEY);
-  state = DEFAULT_STATE();
+  if (state.gameId) {
+    deleteGame(state.gameId);
+  } else {
+    localStorage.removeItem(LS_KEY);
+    state = DEFAULT_STATE();
+  }
   history.replaceState(null, '', window.location.pathname);
   render();
   toast('Game reset.');
@@ -810,72 +827,41 @@ function renderHome() {
   const wrap = el('section');
   const year = state.year || DEFAULT_YEAR;
 
-  // Header + year picker
+  // Header + year pills
   wrap.appendChild(el('div',{class:'mb-6 flex flex-wrap items-end justify-between gap-4'},
     el('div',{},
-      el('h2',{class:'font-serif text-3xl sm:text-4xl text-masters-800 font-extrabold'},"Choose a Major"),
-      el('p', {class:'text-gray-600 mt-1 text-sm'},"Pick a tournament to start a snake-draft Pick'em.")
+      el('h2',{class:'font-serif text-3xl sm:text-4xl text-masters-800 font-extrabold'}, `${year} Men's Golf Majors`),
+      el('p', {class:'text-gray-600 mt-1 text-sm'},"Start a new Pick'em for any Major, or pick up where you left off.")
     ),
-    el('div',{class:'flex flex-col'},
-      el('label',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1', for:'year-picker'},'Year'),
-      el('select',{
-        id:'year-picker',
-        style:'width:140px',
-        onchange:(e)=>{ state.year = Number(e.target.value); persist(); render(); }
-      }, ...AVAILABLE_YEARS.map(y =>
-        el('option',{value:String(y), selected: y===year ? 'selected' : null}, String(y))
-      ))
+    el('div',{class:'flex flex-wrap gap-2'},
+      ...AVAILABLE_YEARS.map(y => el('button',{
+        class: 'btn ' + (y === year ? 'btn-primary' : 'btn-ghost'),
+        onclick: () => { state.year = y; try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (_) {} render(); }
+      }, String(y)))
     )
   ));
 
-  // In-progress banner (only when the user has an active tournament game going)
-  if (state.tournamentId) {
-    const activeT = tournamentFor(state.tournamentId);
-    const activeYear = state.year || DEFAULT_YEAR;
-    const phase = state.picks.length
-      ? (draftComplete() ? 'Scoreboard' : 'Draft in progress')
-      : (state.users.length ? 'Setup' : 'Setup');
-    wrap.appendChild(el('div',{class:'card p-4 mb-5 flex flex-wrap items-center justify-between gap-3 border-masters-600', style:'border-width:2px'},
-      el('div',{},
-        el('div',{class:'text-xs uppercase tracking-wider text-masters-700 font-bold'}, 'Game in Progress'),
-        el('div',{class:'font-serif text-xl text-masters-800 mt-1'}, `${activeT.name} • ${activeYear}`),
-        el('div',{class:'text-xs text-gray-600 mt-1'},
-          `${phase} • ${state.users.length} player${state.users.length===1?'':'s'} • ${state.picks.length} picks made`)
-      ),
-      el('div',{class:'flex gap-2'},
-        el('button',{class:'btn btn-primary', onclick:()=>render()}, 'Resume'),
-        el('button',{class:'btn btn-danger', onclick:()=>{
-          if (!confirm(`Delete the in-progress ${activeT.name} game? This cannot be undone.`)) return;
-          const keepYear = state.year;
-          state = { ...DEFAULT_STATE(), year: keepYear };
-          persist(); render();
-          toast('Game deleted.');
-        }}, 'Delete Game')
-      )
-    ));
-  }
-
-  // Tournament grid
-  const grid = el('div',{class:'grid grid-cols-1 sm:grid-cols-2 gap-5'});
+  // Tournament grid — each card lists saved games with Open / Delete
+  const grid = el('div',{class:'grid grid-cols-1 md:grid-cols-2 gap-5'});
   tournamentsForYear(year).forEach(t => {
-    const hasEventId = !!t.espnEventId;
-    const card = el('button',{
-      class:'tournament-card card text-left p-5 h-40',
-      onclick:()=>startTournament(t.id)
-    },
-      el('div',{class:'accent', style:`background:${t.color}`}),
-      el('div',{class:'ml-3 h-full flex flex-col justify-between'},
-        el('div',{},
-          el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, `${t.month} • ${year}`),
-          el('h3',{class:'font-serif text-2xl sm:text-3xl text-masters-800 mt-1'}, t.name)
-        ),
-        el('div',{class:'text-sm text-gray-600 flex items-end justify-between gap-2'},
+    const games = gamesForTournament(t.id, year);
+    const card = el('div',{class:'card p-5 relative overflow-hidden'},
+      el('div',{style:`position:absolute; top:0; bottom:0; left:0; width:6px; background:${t.color}`}),
+      el('div',{class:'ml-3'},
+        el('div',{class:'flex items-start justify-between gap-3 mb-4'},
           el('div',{},
-            el('div',{class:'font-medium text-gray-800'}, t.venue),
-            el('div',{}, t.location)
+            el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, `${t.month} • ${year}`),
+            el('h3',{class:'font-serif text-2xl text-masters-800 mt-1'}, t.name),
+            el('div',{class:'text-sm text-gray-600 mt-1'}, t.venue)
           ),
-          hasEventId ? null : el('span',{class:'pill', style:'font-size:10px'},'Live sync unavailable')
-        )
+          el('button',{
+            class:'btn btn-primary whitespace-nowrap',
+            onclick:()=>startTournament(t.id)
+          }, '+ New Game')
+        ),
+        games.length
+          ? el('div',{class:'space-y-2'}, ...games.map(g => renderGameRow(g, t)))
+          : el('div',{class:'text-sm text-gray-500 italic'}, 'No games started')
       )
     );
     grid.appendChild(card);
@@ -884,12 +870,56 @@ function renderHome() {
   return wrap;
 }
 
+function renderGameRow(g, t) {
+  const names = (g.users || []).map(u => u.name).filter(Boolean);
+  const label = names.length ? names.join(', ') : (g.gameName || 'New game');
+  const pbc = g.picksByCategory || DEFAULT_PICKS_BY_CATEGORY;
+  const alts = g.alternatesPerUser ?? 0;
+  const need = (g.users?.length || 0) * totalPicksPerUser(pbc, alts);
+  const picksMade = g.picks?.length || 0;
+  const phase = !g.users?.length || !g.draftOrder?.length
+    ? 'Setup'
+    : (need && picksMade >= need) ? 'Complete' : 'In Progress';
+  const pillStyle = phase === 'Complete'
+    ? 'background:#eaf1ec;color:#36503c;border-color:#b9cfc0'
+    : phase === 'In Progress'
+      ? 'background:#fef3c7;color:#92400e;border-color:#fde68a'
+      : '';
+  return el('div',{
+    class:'flex items-center justify-between gap-3 bg-gray-50 rounded-lg px-3 py-2 hover:bg-gray-100 cursor-pointer transition',
+    onclick:()=>{ if (loadGame(g.gameId)) render(); }
+  },
+    el('div',{class:'truncate text-sm font-medium text-gray-800'}, label),
+    el('div',{class:'flex items-center gap-2 shrink-0'},
+      el('span',{class:'pill', style: pillStyle}, phase),
+      el('button',{
+        class:'btn btn-ghost',
+        style:'padding:4px 10px',
+        title:'Delete game',
+        onclick:(e)=>{
+          e.stopPropagation();
+          if (!confirm(`Delete this ${t.shortName} game? This cannot be undone.`)) return;
+          deleteGame(g.gameId);
+          render();
+          toast('Game deleted.');
+        }
+      }, '✕')
+    )
+  );
+}
+
 function startTournament(id) {
-  if (state.tournamentId && state.tournamentId !== id && state.picks.length) {
-    if (!confirm('You have an in-progress game for a different Major. Start a new one and discard it?')) return;
-  }
   const keepYear = state.year || DEFAULT_YEAR;
-  state = { ...DEFAULT_STATE(), year: keepYear, tournamentId: id };
+  const t = tournamentFor(id, keepYear);
+  const gameNum = nextGameNumber(id, keepYear);
+  state = {
+    ...DEFAULT_STATE(),
+    year: keepYear,
+    tournamentId: id,
+    gameId: uid('g'),
+    gameName: `${t.shortName} Game ${gameNum}`,
+    createdAt: new Date().toISOString()
+  };
   persist();
   render();
 }
@@ -904,7 +934,12 @@ function renderSetup() {
       el('h2',{class:'font-serif text-3xl text-masters-800 font-extrabold'}, t.name),
       el('div',{class:'text-gray-600 text-sm mt-1'}, `${t.venue} • ${t.location}`)
     ),
-    el('button',{class:'btn btn-ghost', onclick:()=>{ state.tournamentId=null; persist(); render(); }}, '← Choose Different Major')
+    el('button',{class:'btn btn-ghost', onclick:()=>{
+      const keepYear = state.year;
+      state = { ...DEFAULT_STATE(), year: keepYear };
+      try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (_) {}
+      render();
+    }}, '← Choose Different Major')
   ));
 
   // Users
@@ -1571,8 +1606,12 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeShare
 
 // ---------- NAV / WIRING ----------
 $('#nav-home').addEventListener('click', () => {
-  if (state.picks.length && !confirm('Leave this game and return to home? Your current picks stay saved.')) return;
-  state.tournamentId = null; persist(); render();
+  // Games live in the games store; the active state is just the game in view.
+  // Reset to a blank home state so we don't mirror a tournament-less record back.
+  const keepYear = state.year;
+  state = { ...DEFAULT_STATE(), year: keepYear };
+  try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (_) {}
+  render();
 });
 $('#nav-reset').addEventListener('click', resetAll);
 

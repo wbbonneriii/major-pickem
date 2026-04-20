@@ -1,23 +1,28 @@
 # Major Pick'em
 
 A single-page, serverless web app for running a Men's Professional Golf Majors Pick'em league.
-Snake-draft four players (one from each category), then track live scores from the ESPN public
-leaderboard — no backend, no database, no API key.
+Snake-draft starters + alternates, run multiple games per tournament, and track live scores
+from the ESPN public leaderboard — no backend, no database, no API key.
 
-**Live URL format:** `https://wbbonneriii.github.io/major-pickem/`
+**Live URL:** `https://wbbonneriii.github.io/major-pickem/`
 
 ---
 
 ## Features
 
 - **Four Majors** — Masters, PGA Championship, U.S. Open, The Open Championship
-- **Snake draft** — 1-2-2-1 logic for 2 players, reversed-round logic for 3+
-- **Four categories per player** — Top 10, International, No Major Wins, First Timers
+- **Multi-year** — 2024 – 2026 built in; add more in `YEAR_DATA` in `index.html`
+- **Multiple games per tournament** — start as many games as you want under each Major, each with its own players, picks, and scores
+- **Snake draft** — standard snake ordering (A-B → B-A → A-B…) for any number of players
+- **Starter categories** (configurable quotas per game) — Top 10, International, No Major Wins, First Timers
+- **Alternates** — each user drafts N alternates (default 2) after their starters; any field player qualifies
+- **Swap starter ↔ alternate** — swap in an alternate from the scoreboard; their category label transfers with them
 - **Global no-duplicates** — once a player is picked in any category, they're removed everywhere
 - **Live ESPN sync** — fetch current leaderboard with one click; cumulative scores, position, cut status
+- **Pull field from ESPN** — import the current event's competitor list into the roster
 - **Winner rules** — (1) picker of the champion wins; (2) otherwise most cuts made; (3) tiebreaker is lowest team score
-- **localStorage persistence** — your game survives refreshes
-- **Shareable URL** — the whole game (users, picks, roster, scores) is encoded into a Base64 hash fragment so you can send a single link with zero infra
+- **localStorage persistence** — games survive refreshes
+- **Shareable URL** — slim Base64 hash fragment encodes only what's needed; shared links land in the recipient's saved-games list
 
 ---
 
@@ -25,17 +30,18 @@ leaderboard — no backend, no database, no API key.
 
 ```
 major-pickem/
-├── index.html     # Complete SPA: HTML + Tailwind CSS (CDN) + Vanilla JS
-└── README.md      # This file
+├── index.html                    # Complete SPA: HTML + Tailwind CSS (CDN) + Vanilla JS
+├── README.md                     # This file
+└── Master_Development_Plan_v2.md # As-built plan (v2.0)
 ```
 
-That's it. Two files. No build step, no dependencies to install.
+No build step, no dependencies to install.
 
 ---
 
 ## Local Development
 
-Just open `index.html` in a browser, or serve the directory:
+Open `index.html` directly in a browser, or serve the directory:
 
 ```bash
 # Python
@@ -46,20 +52,23 @@ python3 -m http.server 8080
 npx serve .
 ```
 
-The app stores state in `localStorage` under the key `major-pickem:v1`.
+The app uses two `localStorage` keys:
+
+- `major-pickem:v1` — the game currently in view.
+- `major-pickem:games:v1` — the multi-game store, keyed by `gameId`.
 
 ---
 
 ## GitHub Pages Deployment
 
 1. Create the repository on GitHub as **`wbbonneriii/major-pickem`** (public).
-2. Commit and push these two files to the `main` branch:
+2. Commit and push to the `main` branch:
 
    ```bash
    git init
    git remote add origin https://github.com/wbbonneriii/major-pickem.git
-   git add index.html README.md
-   git commit -m "Initial Major Pick'em app"
+   git add index.html README.md Master_Development_Plan_v2.md
+   git commit -m "Major Pick'em v2 — multi-game support"
    git branch -M main
    git push -u origin main
    ```
@@ -70,17 +79,37 @@ The app stores state in `localStorage` under the key `major-pickem:v1`.
 
 ---
 
+## Multi-Game Workflow
+
+1. **Home page** lists all four Majors with a `+ New Game` button on each card.
+2. Click `+ New Game` under a tournament to start a fresh draft — it's auto-named
+   `<Major> Game N` and appears immediately in that card's game list.
+3. Each saved game shows its players, a phase pill (Setup / In Progress / Complete),
+   and a `✕` delete button.
+4. Click a game row to resume it. `Home` in the nav returns without losing anything —
+   all games are saved to the games store.
+5. `Reset` deletes only the game currently in view.
+
+---
+
 ## URL Sharing Format
 
-The **Share** button copies a URL that looks like:
+The **Share** button (on the scoreboard) opens a modal with a URL like:
 
 ```
 https://wbbonneriii.github.io/major-pickem/#g=<base64-payload>
 ```
 
-The `#g=` fragment contains the full game state — tournament, users, draft order, picks, roster,
-and any synced scores — serialized as JSON → UTF-8 → Base64 (URL-safe). When anyone opens that
-link, the app decodes the payload into `localStorage` and renders the game exactly as shared.
+The `#g=` fragment contains a **slimmed** game state — only the players referenced by
+picks plus the tournament winner — serialized as JSON → UTF-8 → Base64 (URL-safe). This
+keeps typical share URLs under ~6 KB instead of tens of KB.
+
+When anyone opens the link:
+
+- The payload decodes into the recipient's `localStorage`.
+- A fresh `gameId` is minted so the shared game lands in their games list.
+- The current view renders the shared game exactly as sent.
+
 No server ever sees the data.
 
 ---
@@ -90,10 +119,12 @@ No server ever sees the data.
 - **ESPN PGA Leaderboard** (public, no key):
   `https://site.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard`
   Used for live scoring, positions, and cut tracking. When no tournament is active, ESPN returns
-  the most recent event.
-- **OWGR / Majors history** — the seed field in `index.html` is a plausible 2025-era snapshot.
-  Edit it in-app (Setup → Field / Roster) before each Major, or click **Pull Field from ESPN** to
-  import the current event's competitors and then tag majors/first-timers by hand.
+  the most recent event. Year-specific events are fetched via `espnEventId` in `YEAR_DATA`.
+- **Seed field** — the `SEED_FIELD` constant in `index.html` is a curated 2026 Masters-week
+  snapshot (OWGR Top 15, ranked pros, LIV golfers with deflated OWGR, and the 2026 Masters
+  first-timers). Edit in-app (Setup → Field / Roster) before each Major, or click
+  **Pull Field from ESPN** to import the current event's competitors and tag majors/first-timers
+  by hand. The `SEED_VERSION` constant triggers an automatic roster refresh when bumped.
 
 ---
 
@@ -107,6 +138,8 @@ The scoreboard sorts teams by this priority:
    field after the cut.
 3. **Lowest cumulative team score** as tiebreaker.
 
+Alternate picks never count unless explicitly swapped in via the scoreboard.
+
 ---
 
 ## Notes & Limitations
@@ -116,9 +149,12 @@ The scoreboard sorts teams by this priority:
   doesn't populate, update the selectors there.
 - Name matching between the local roster and ESPN is normalized (diacritics, case, punctuation)
   but exotic name variants may need manual alignment via the roster editor.
-- Base64-encoded URLs can get long with many users. Browsers and most chat apps handle multi-KB
-  URLs fine, but email clients sometimes wrap them — prefer copy/paste into messaging apps.
+- Share URLs are slimmed, but with many users and deep rosters can still reach a few KB. Browsers
+  and most chat apps handle this fine; email clients sometimes wrap long URLs — prefer copy/paste
+  into messaging apps.
+- The scoreboard **Share** button is the only entry point for sharing; there is no nav-level
+  share to avoid duplication.
 
 ---
 
-**Built for** [@wbbonneriii](https://github.com/wbbonneriii) • **Project:** Major Pick'em Development Plan v1.0
+**Built for** [@wbbonneriii](https://github.com/wbbonneriii) • **Project:** Major Pick'em Development Plan **v2.0 (As Built)**

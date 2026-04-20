@@ -369,22 +369,38 @@ function orderedStandings() {
 }
 
 // ---------- ESPN SYNC ----------
+const ESPN_ENDPOINTS = [
+  'https://site.api.espn.com/apis/site/v2/sports/golf/leaderboard',
+  'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard'
+];
+async function fetchEspn() {
+  let lastErr;
+  for (const url of ESPN_ENDPOINTS) {
+    try {
+      const res = await fetch(url, { cache:'no-store' });
+      if (!res.ok) { lastErr = new Error(`HTTP ${res.status} from ${url}`); continue; }
+      const data = await res.json();
+      if (data?.events?.[0]?.competitions?.[0]?.competitors?.length) return data;
+      lastErr = new Error('Empty competitors');
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('ESPN unreachable');
+}
+
 async function syncScores() {
   if (!state.tournamentId) return;
   toast('Fetching ESPN leaderboard…');
   try {
-    const url = 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard';
-    const res = await fetch(url, { cache:'no-store' });
-    if (!res.ok) throw new Error('ESPN fetch failed');
-    const data = await res.json();
+    const data = await fetchEspn();
     applyEspnData(data);
     state.lastSync = new Date().toISOString();
     persist();
     render();
-    toast('Scores synced from ESPN.');
+    const evName = data?.events?.[0]?.name || 'event';
+    toast(`Scores synced (${evName}).`);
   } catch (e) {
-    console.warn(e);
-    toast('Could not reach ESPN. Try again later.');
+    console.warn('ESPN sync failed:', e);
+    toast('Could not reach ESPN. Check console for details.');
   }
 }
 
@@ -395,22 +411,28 @@ function normalizeName(n) {
 }
 
 function applyEspnData(data) {
-  // ESPN returns events[0].competitions[0].competitors[*] with athlete.displayName,
-  // statistics/score/linescores, status, etc. Be defensive: shape varies.
+  // ESPN returns events[0].competitions[0].competitors[*]. Response shape:
+  //   athlete.displayName, athlete.flag.alt (country name)
+  //   score: { value, displayValue } OR number
+  //   status.position.displayName ('T12', '1'), status.type.name ('STATUS_CUT', 'STATUS_FINISH'...)
+  //   status.period (1..4 by round), status.thru/displayThru
   const event = data?.events?.[0];
   if (!event) return;
   const comp = event.competitions?.[0];
   const competitors = comp?.competitors || [];
-  const status = comp?.status?.type?.state || comp?.status?.type?.name || '';
-  const isFinal = /post|final|complete/i.test(status);
+  const evState = (comp?.status?.type?.state || event?.status?.type?.state || '').toLowerCase();
+  const isFinal = evState === 'post' || /final|complete/i.test(comp?.status?.type?.name || '');
 
   const byName = new Map();
   state.field.forEach(p => byName.set(normalizeName(p.name), p));
 
-  // find winner candidate
+  // winner: position '1' (not tied) when event is post/final
   let winnerId = null;
   if (isFinal) {
-    const w = competitors.find(c => c.status?.position?.id === '1' || c.status?.position?.displayName === '1' || c.winner === true);
+    const w = competitors.find(c => {
+      const pos = c.status?.position;
+      return pos && (pos.displayName === '1' || pos.id === '1') && !pos.isTie;
+    }) || competitors.find(c => c.winner === true);
     if (w) {
       const wp = byName.get(normalizeName(w.athlete?.displayName));
       if (wp) winnerId = wp.id;
@@ -419,29 +441,28 @@ function applyEspnData(data) {
 
   competitors.forEach(c => {
     const ath = c.athlete || {};
-    const key = normalizeName(ath.displayName);
+    const key = normalizeName(ath.displayName || ath.fullName);
     const p = byName.get(key);
     if (!p) return;
 
-    // Position & cut
     const posTxt = (c.status?.position?.displayName ?? c.status?.position?.id ?? '').toString();
-    const displayValue = c.score ?? c.status?.displayValue ?? '';
-    // Cut detection: ESPN sets status.type.name = "STATUS_CUT" or position CUT / WD / MDF
+    const scoreRaw = typeof c.score === 'object' && c.score !== null ? c.score.displayValue : c.score;
+    const toPar = parseScore(scoreRaw);
+
     const stateName = (c.status?.type?.name || '').toUpperCase();
     const madeCut =
-      /CUT/.test(stateName) ? false :
-      /WD|DQ/.test(stateName) ? false :
+      /CUT|WD|DQ|WITHDRAW/.test(stateName) ? false :
       (c.status?.period || 0) >= 3 ? true :
-      null; // null = unknown / tournament not past cut line
+      null;
 
-    // Total to-par
-    const toPar = parseScore(displayValue) ?? parseScore(c.statistics?.find?.(s => /score|total/i.test(s.name))?.displayValue);
+    const lastLs = (c.linescores||[])[ (c.linescores||[]).length - 1 ];
+    const todayRaw = lastLs && (typeof lastLs === 'object' ? (lastLs.displayValue ?? lastLs.value) : lastLs);
 
     state.scores[p.id] = {
       total: toPar,
-      today: parseScore(c.linescores?.[c.linescores.length-1]?.displayValue),
-      thru:  c.status?.thru ?? c.status?.displayValue ?? '',
-      rounds: (c.linescores||[]).map(l => l.value),
+      today: parseScore(todayRaw),
+      thru:  c.status?.displayThru ?? c.status?.thru ?? c.status?.displayValue ?? '',
+      rounds: (c.linescores||[]).map(l => (typeof l === 'object' ? l.value : l)),
       pos: posTxt,
       madeCut,
       isWinner: winnerId === p.id
@@ -461,9 +482,9 @@ function parseScore(v) {
 // ---------- ROUTING ----------
 const routes = ['home','setup','draft','scoreboard'];
 function currentRoute() {
-  if (!state.tournamentId) return 'home';
-  if (!state.users.length)  return 'setup';
-  if (!draftComplete())     return 'draft';
+  if (!state.tournamentId)       return 'home';
+  if (!state.draftOrder.length)  return 'setup';
+  if (!draftComplete())          return 'draft';
   return 'scoreboard';
 }
 
@@ -676,15 +697,36 @@ function majorsCheckboxes(player, key) {
   return wrap;
 }
 
+// ESPN `athlete.flag.alt` is a country name ("United States", "England", "Northern Ireland").
+// Map to 3-letter codes so the International / USA filter works.
+const COUNTRY_CODES = {
+  'united states':'USA','usa':'USA','u.s.':'USA','us':'USA',
+  'england':'ENG','scotland':'SCO','wales':'WAL','northern ireland':'NIR','ireland':'IRL',
+  'south africa':'RSA','australia':'AUS','new zealand':'NZL','japan':'JPN','south korea':'KOR',
+  'republic of korea':'KOR','korea':'KOR','canada':'CAN','mexico':'MEX','colombia':'COL',
+  'argentina':'ARG','chile':'CHI','venezuela':'VEN','germany':'GER','spain':'ESP',
+  'france':'FRA','italy':'ITA','sweden':'SWE','norway':'NOR','denmark':'DEN','finland':'FIN',
+  'austria':'AUT','belgium':'BEL','netherlands':'NED','poland':'POL','czech republic':'CZE',
+  'taiwan':'TPE','chinese taipei':'TPE','china':'CHN','thailand':'THA','india':'IND',
+  'philippines':'PHI','malaysia':'MAS','singapore':'SGP','zimbabwe':'ZIM','fiji':'FIJ',
+  'puerto rico':'PUR'
+};
+function countryCode(raw) {
+  if (!raw) return 'USA';
+  const k = String(raw).toLowerCase().trim();
+  if (COUNTRY_CODES[k]) return COUNTRY_CODES[k];
+  if (/^[a-z]{3}$/.test(k)) return k.toUpperCase();
+  return String(raw).toUpperCase().slice(0,3);
+}
+
 async function pullFieldFromEspn() {
   toast('Loading field from ESPN…');
   try {
-    const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard');
-    if (!res.ok) throw new Error();
-    const data = await res.json();
+    const data = await fetchEspn();
     const comps = data?.events?.[0]?.competitions?.[0]?.competitors || [];
     if (!comps.length) throw new Error('No competitors returned');
     const existingIds = new Set(state.field.map(p=>p.id));
+    let added = 0;
     comps.forEach((c,i) => {
       const ath = c.athlete || {};
       const name = ath.displayName || ath.fullName;
@@ -694,17 +736,19 @@ async function pullFieldFromEspn() {
       state.field.push({
         id,
         name,
-        country: (ath.flag?.alt || ath.birthPlace?.country || 'USA').toUpperCase().slice(0,3),
-        owgr: (i+1), // best-effort rank from leaderboard ordering
+        country: countryCode(ath.flag?.alt || ath.birthPlace?.country),
+        owgr: (i+1),
         majorsWon: [],
         firstTimerAt: []
       });
+      added++;
     });
     persist(); render();
-    toast(`Field loaded (${comps.length}). Verify OWGR/majors before drafting.`);
+    const evName = data?.events?.[0]?.name || 'event';
+    toast(`Field loaded from ${evName} (+${added} new). Verify OWGR/majors before drafting.`);
   } catch (e) {
-    console.warn(e);
-    toast('ESPN field fetch failed.');
+    console.warn('Pull field failed:', e);
+    toast('ESPN field fetch failed. See console.');
   }
 }
 

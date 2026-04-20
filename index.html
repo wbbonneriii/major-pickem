@@ -1,0 +1,977 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Major Pick'em — Men's Professional Golf Majors Draft</title>
+<meta name="description" content="A snake-draft Pick'em league for the four men's professional golf Majors with live ESPN scoring." />
+<link rel="preconnect" href="https://site.api.espn.com" />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          masters: { DEFAULT:'#43634b', 50:'#f2f6f3', 100:'#dde7df', 200:'#b9cfc0', 300:'#8fb29a', 400:'#6a9179', 500:'#4f7860', 600:'#43634b', 700:'#36503c', 800:'#2c4031', 900:'#243429' },
+          sand: '#f8f9fa',
+          flag: '#c24a2b',
+          gold: '#b38b00'
+        },
+        fontFamily: {
+          serif: ['"Playfair Display"', 'Georgia', 'serif'],
+          sans: ['system-ui', '-apple-system', 'Segoe UI', 'sans-serif']
+        }
+      }
+    }
+  };
+</script>
+<style>
+  html,body { background:#f8f9fa; color:#1f2937; font-family:system-ui,-apple-system,Segoe UI,sans-serif; }
+  h1,h2,h3,h4,.font-serif { font-family:'Playfair Display', Georgia, serif; }
+  .card { background:#fff; border:1px solid #e5e7eb; border-radius:14px; box-shadow:0 1px 2px rgba(0,0,0,.03); }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:9px 16px; border-radius:9px; font-weight:600; font-size:14px; transition:background .15s, transform .05s, color .15s, border-color .15s; cursor:pointer; border:1px solid transparent; }
+  .btn:active { transform:translateY(1px); }
+  .btn-primary { background:#43634b; color:#fff; }
+  .btn-primary:hover { background:#36503c; }
+  .btn-primary:disabled { background:#b9cfc0; cursor:not-allowed; }
+  .btn-ghost { background:#fff; border-color:#d1d5db; color:#1f2937; }
+  .btn-ghost:hover { background:#f3f4f6; }
+  .btn-danger { background:#c24a2b; color:#fff; }
+  .btn-danger:hover { background:#a23d23; }
+  .btn-gold { background:#b38b00; color:#fff; }
+  .btn-gold:hover { background:#8f6f00; }
+  .pill { border:1px solid #d1d5db; border-radius:999px; padding:4px 12px; font-weight:500; font-size:12px; background:#fff; color:#374151; }
+  .pill-green { background:#eaf1ec; color:#36503c; border-color:#b9cfc0; }
+  .pill-red   { background:#fbe9e2; color:#8f3a22; border-color:#f0c3b2; }
+  select, input[type=text], input[type=number] { border:1px solid #d1d5db; border-radius:9px; padding:9px 10px; font-size:14px; background:#fff; width:100%; color:#1f2937; }
+  select:focus, input:focus { outline:none; border-color:#43634b; box-shadow:0 0 0 3px rgba(67,99,75,.18); }
+  .hdr-gradient { background: linear-gradient(120deg,#2c4031 0%,#43634b 60%, #4f7860 100%); }
+  .tournament-card { position:relative; overflow:hidden; transition:transform .15s, box-shadow .15s; cursor:pointer; }
+  .tournament-card:hover { transform:translateY(-2px); box-shadow:0 12px 28px rgba(0,0,0,.08); }
+  .tournament-card .accent { position:absolute; inset:0 auto 0 0; width:6px; }
+  .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#111827; color:#fff; padding:10px 18px; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.15); font-size:14px; z-index:50; opacity:0; transition:opacity .2s; pointer-events:none; }
+  .toast.show { opacity:1; }
+  .score-pos { color:#c24a2b; font-weight:700; }
+  .score-neg { color:#36503c; font-weight:700; }
+  .score-even { color:#4b5563; font-weight:700; }
+  .winner-glow { box-shadow:0 0 0 2px #b38b00 inset, 0 10px 40px rgba(179,139,0,.18); border-color:#b38b00!important; }
+  details > summary { list-style:none; cursor:pointer; }
+  details > summary::-webkit-details-marker { display:none; }
+  .fade-in { animation: fade .25s ease; }
+  @keyframes fade { from { opacity:0; transform:translateY(4px);} to { opacity:1; transform:none; } }
+  .kbd { font-family:ui-monospace,Menlo,monospace; font-size:12px; background:#f3f4f6; border:1px solid #e5e7eb; border-bottom-width:2px; padding:1px 6px; border-radius:4px; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- ===================== HEADER ===================== -->
+<header class="hdr-gradient text-white">
+  <div class="max-w-6xl mx-auto px-5 py-6 flex items-center justify-between flex-wrap gap-3">
+    <div class="flex items-center gap-3">
+      <div class="w-11 h-11 rounded-full bg-white/15 border border-white/20 grid place-items-center font-serif text-2xl">⛳</div>
+      <div>
+        <h1 class="font-serif text-3xl sm:text-4xl font-extrabold leading-none tracking-tight">Major Pick'em</h1>
+        <div class="text-masters-100 text-sm mt-1">Men's Professional Golf • Snake Draft • Live Scoring</div>
+      </div>
+    </div>
+    <nav class="flex items-center gap-2">
+      <button id="nav-home" class="btn btn-ghost text-masters-700">Home</button>
+      <button id="nav-share" class="btn btn-ghost text-masters-700">Share</button>
+      <button id="nav-reset" class="btn btn-danger">Reset</button>
+    </nav>
+  </div>
+</header>
+
+<main id="app" class="max-w-6xl mx-auto px-5 py-8"></main>
+
+<footer class="max-w-6xl mx-auto px-5 py-10 text-center text-gray-500 text-xs">
+  Major Pick'em • Built for <span class="font-semibold">wbbonneriii</span> • Live scores via ESPN public endpoints • No server required.
+</footer>
+
+<div id="toast" class="toast"></div>
+
+<!-- ===================== APP SCRIPT ===================== -->
+<script>
+/* =====================================================================
+   Major Pick'em — single-file SPA
+   - Vanilla JS, Tailwind via CDN
+   - localStorage persistence
+   - Base64-encoded URL sharing (no backend)
+   - ESPN public scoreboard API for live scoring
+   ===================================================================== */
+
+// ---------- CONSTANTS ----------
+const LS_KEY = 'major-pickem:v1';
+
+// ESPN event IDs change each year; these can be updated here without code changes elsewhere.
+// When the event is live/recent, ESPN's generic "pga/leaderboard" returns the active event automatically.
+const TOURNAMENTS = [
+  { id:'masters',  name:'The Masters',             shortName:'Masters',   venue:'Augusta National Golf Club',       location:'Augusta, GA',    month:'April',   color:'#006747', accent:'#b38b00' },
+  { id:'pga',      name:'PGA Championship',         shortName:'PGA',       venue:'Host Club',                        location:'Varies',         month:'May',     color:'#1b365d', accent:'#c9a227' },
+  { id:'usopen',   name:'U.S. Open',                shortName:'US Open',   venue:'USGA Host Course',                 location:'Varies',         month:'June',    color:'#8f1b1b', accent:'#0b2545' },
+  { id:'theopen',  name:'The Open Championship',    shortName:'The Open',  venue:'R&A Host Course',                  location:'United Kingdom', month:'July',    color:'#2c2c2c', accent:'#d4af37' }
+];
+
+// Category metadata (source of truth for dropdown rendering)
+const CATEGORIES = [
+  { id:'top10',        label:'Top 10',          help:'Current OWGR rank 1–10.' },
+  { id:'international',label:'International',   help:'Non-USA players ranked outside Top 10.' },
+  { id:'nomajorwins',  label:'No Major Wins',   help:'Field members who have never won a professional Major.' },
+  { id:'firsttimers',  label:'First Timers',    help:'Players making their debut at this Major.' }
+];
+
+// --- Default seed field (editable in-app; used as fallback when API / user list unavailable).
+// Each player: { id, name, country, owgr, majorsWon, firstTimerAt: [tournamentIds] }
+// This is a plausible 2025-era snapshot — user can edit or load from ESPN roster at draft time.
+const SEED_FIELD = [
+  { id:'p_scheffler',   name:'Scottie Scheffler',  country:'USA', owgr:1,  majorsWon:['masters'],         firstTimerAt:[] },
+  { id:'p_schauffele',  name:'Xander Schauffele',  country:'USA', owgr:2,  majorsWon:['pga','theopen'],   firstTimerAt:[] },
+  { id:'p_mcilroy',     name:'Rory McIlroy',       country:'NIR', owgr:3,  majorsWon:['pga','usopen','theopen','masters'], firstTimerAt:[] },
+  { id:'p_morikawa',    name:'Collin Morikawa',    country:'USA', owgr:4,  majorsWon:['pga','theopen'],   firstTimerAt:[] },
+  { id:'p_homa',        name:'Max Homa',           country:'USA', owgr:5,  majorsWon:[],                  firstTimerAt:[] },
+  { id:'p_aberg',       name:'Ludvig Åberg',       country:'SWE', owgr:6,  majorsWon:[],                  firstTimerAt:['usopen'] },
+  { id:'p_hovland',     name:'Viktor Hovland',     country:'NOR', owgr:7,  majorsWon:[],                  firstTimerAt:[] },
+  { id:'p_lowry',       name:'Shane Lowry',        country:'IRL', owgr:8,  majorsWon:['theopen'],         firstTimerAt:[] },
+  { id:'p_matsuyama',   name:'Hideki Matsuyama',   country:'JPN', owgr:9,  majorsWon:['masters'],         firstTimerAt:[] },
+  { id:'p_rahm',        name:'Jon Rahm',           country:'ESP', owgr:10, majorsWon:['usopen','masters'],firstTimerAt:[] },
+  { id:'p_cantlay',     name:'Patrick Cantlay',    country:'USA', owgr:11, majorsWon:[],                  firstTimerAt:[] },
+  { id:'p_fleetwood',   name:'Tommy Fleetwood',    country:'ENG', owgr:12, majorsWon:[],                  firstTimerAt:[] },
+  { id:'p_straka',      name:'Sepp Straka',        country:'AUT', owgr:13, majorsWon:[],                  firstTimerAt:[] },
+  { id:'p_finau',       name:'Tony Finau',         country:'USA', owgr:14, majorsWon:[],                  firstTimerAt:[] },
+  { id:'p_fitzpatrick', name:'Matt Fitzpatrick',   country:'ENG', owgr:15, majorsWon:['usopen'],          firstTimerAt:[] },
+  { id:'p_conners',     name:'Corey Conners',      country:'CAN', owgr:16, majorsWon:[],                  firstTimerAt:[] },
+  { id:'p_day',         name:'Jason Day',          country:'AUS', owgr:17, majorsWon:['pga'],             firstTimerAt:[] },
+  { id:'p_harman',      name:'Brian Harman',       country:'USA', owgr:18, majorsWon:['theopen'],         firstTimerAt:[] },
+  { id:'p_mcnealy',     name:'Maverick McNealy',   country:'USA', owgr:19, majorsWon:[],                  firstTimerAt:['masters','pga','usopen','theopen'] },
+  { id:'p_detry',       name:'Thomas Detry',       country:'BEL', owgr:20, majorsWon:[],                  firstTimerAt:[] },
+  { id:'p_hatton',      name:'Tyrrell Hatton',     country:'ENG', owgr:21, majorsWon:[],                  firstTimerAt:[] },
+  { id:'p_young',       name:'Cameron Young',      country:'USA', owgr:22, majorsWon:[],                  firstTimerAt:[] },
+  { id:'p_pendrith',    name:'Taylor Pendrith',    country:'CAN', owgr:23, majorsWon:[],                  firstTimerAt:[] },
+  { id:'p_bhatia',      name:'Akshay Bhatia',      country:'USA', owgr:24, majorsWon:[],                  firstTimerAt:['masters'] },
+  { id:'p_clark',       name:'Wyndham Clark',      country:'USA', owgr:25, majorsWon:['usopen'],          firstTimerAt:[] },
+  { id:'p_theegala',    name:'Sahith Theegala',    country:'USA', owgr:26, majorsWon:[],                  firstTimerAt:[] },
+  { id:'p_thomas',      name:'Justin Thomas',      country:'USA', owgr:27, majorsWon:['pga'],             firstTimerAt:[] },
+  { id:'p_spieth',      name:'Jordan Spieth',      country:'USA', owgr:28, majorsWon:['masters','usopen','theopen'], firstTimerAt:[] },
+  { id:'p_sheffield',   name:'Davis Thompson',     country:'USA', owgr:29, majorsWon:[],                  firstTimerAt:['masters','usopen','theopen'] },
+  { id:'p_novak',       name:'Andrew Novak',       country:'USA', owgr:30, majorsWon:[],                  firstTimerAt:['masters','pga','usopen','theopen'] },
+  { id:'p_kitayama',    name:'Kurt Kitayama',      country:'USA', owgr:31, majorsWon:[],                  firstTimerAt:[] },
+  { id:'p_im',          name:'Sungjae Im',         country:'KOR', owgr:32, majorsWon:[],                  firstTimerAt:[] },
+  { id:'p_smith',       name:'Cameron Smith',      country:'AUS', owgr:33, majorsWon:['theopen'],         firstTimerAt:[] },
+  { id:'p_koepka',      name:'Brooks Koepka',      country:'USA', owgr:34, majorsWon:['pga','usopen'],    firstTimerAt:[] },
+  { id:'p_dechambeau',  name:'Bryson DeChambeau',  country:'USA', owgr:35, majorsWon:['usopen'],          firstTimerAt:[] },
+  { id:'p_griffin',     name:'Ben Griffin',        country:'USA', owgr:36, majorsWon:[],                  firstTimerAt:['masters','pga','usopen','theopen'] },
+  { id:'p_highsmith',   name:'Joe Highsmith',      country:'USA', owgr:37, majorsWon:[],                  firstTimerAt:['masters','pga','usopen','theopen'] },
+  { id:'p_rai',         name:'Aaron Rai',          country:'ENG', owgr:38, majorsWon:[],                  firstTimerAt:[] },
+  { id:'p_burns',       name:'Sam Burns',          country:'USA', owgr:39, majorsWon:[],                  firstTimerAt:[] },
+  { id:'p_bezuidenhout',name:'Christiaan Bezuidenhout', country:'RSA', owgr:40, majorsWon:[],             firstTimerAt:[] }
+];
+
+// ---------- STATE ----------
+const DEFAULT_STATE = () => ({
+  tournamentId: null,         // which Major this game is for
+  users: [],                  // [{id, name}]
+  picksPerUser: 4,            // one per category
+  draftOrder: [],             // computed sequence of user ids (snake)
+  currentPickIndex: 0,
+  picks: [],                  // [{userId, category, playerId, round, overall}]
+  field: SEED_FIELD,          // editable roster
+  scores: {},                 // playerId -> { total, today, thru, madeCut, rounds:[...], pos }
+  lastSync: null
+});
+
+let state = loadState();
+
+function loadState() {
+  // 1) URL share payload takes precedence on first load
+  const hash = window.location.hash;
+  if (hash && hash.startsWith('#g=')) {
+    try {
+      const payload = decodePayload(hash.slice(3));
+      if (payload) {
+        persist(payload);
+        // keep URL clean after ingest
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+        return payload;
+      }
+    } catch (e) { console.warn('Bad share payload', e); }
+  }
+  // 2) localStorage
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) return { ...DEFAULT_STATE(), ...JSON.parse(raw) };
+  } catch (e) {}
+  return DEFAULT_STATE();
+}
+function persist(next) {
+  state = next ?? state;
+  try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+}
+function resetAll() {
+  if (!confirm('Reset this game and clear all picks? This cannot be undone.')) return;
+  localStorage.removeItem(LS_KEY);
+  state = DEFAULT_STATE();
+  history.replaceState(null, '', window.location.pathname);
+  render();
+  toast('Game reset.');
+}
+
+// ---------- UTIL ----------
+const $ = (sel, root=document) => root.querySelector(sel);
+const el = (tag, attrs={}, ...kids) => {
+  const n = document.createElement(tag);
+  for (const [k,v] of Object.entries(attrs)) {
+    if (k === 'class') n.className = v;
+    else if (k === 'html') n.innerHTML = v;
+    else if (k.startsWith('on') && typeof v === 'function') n.addEventListener(k.slice(2), v);
+    else if (v !== null && v !== undefined && v !== false) n.setAttribute(k, v);
+  }
+  for (const k of kids.flat()) {
+    if (k == null || k === false) continue;
+    n.appendChild(typeof k === 'string' ? document.createTextNode(k) : k);
+  }
+  return n;
+};
+function toast(msg, ms=2200) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(()=>t.classList.remove('show'), ms);
+}
+function fmtScore(n) {
+  if (n == null || isNaN(n)) return '—';
+  if (n === 0) return 'E';
+  return n > 0 ? `+${n}` : `${n}`;
+}
+function scoreClass(n) {
+  if (n == null || isNaN(n)) return 'score-even';
+  if (n > 0) return 'score-pos';
+  if (n < 0) return 'score-neg';
+  return 'score-even';
+}
+function uid(p='id') { return p + '_' + Math.random().toString(36).slice(2,9); }
+
+// Base64 URL-safe encode/decode of compressed JSON
+function encodePayload(obj) {
+  const json = JSON.stringify(obj);
+  const b64 = btoa(unescape(encodeURIComponent(json)));
+  return b64.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function decodePayload(s) {
+  try {
+    const b64 = s.replace(/-/g,'+').replace(/_/g,'/') + '==='.slice((s.length+3)%4);
+    const json = decodeURIComponent(escape(atob(b64)));
+    return JSON.parse(json);
+  } catch (e) { return null; }
+}
+
+// ---------- DRAFT LOGIC ----------
+function buildSnakeOrder(userIds, picksPerUser) {
+  // 1-2-2-1 for 2 players = [A,B,B,A]
+  // general: snake reversal each round
+  const order = [];
+  for (let r = 0; r < picksPerUser; r++) {
+    const roundIds = r % 2 === 0 ? userIds : [...userIds].reverse();
+    order.push(...roundIds);
+  }
+  return order;
+}
+
+function isPlayerInCategory(player, categoryId, tournamentId) {
+  switch (categoryId) {
+    case 'top10':         return player.owgr >= 1 && player.owgr <= 10;
+    case 'international': return player.country !== 'USA' && player.owgr > 10;
+    case 'nomajorwins':   return (player.majorsWon || []).length === 0;
+    case 'firsttimers':   return (player.firstTimerAt || []).includes(tournamentId);
+    default: return false;
+  }
+}
+
+function pickedPlayerIds() { return new Set(state.picks.map(p => p.playerId)); }
+
+function currentPicker() {
+  if (!state.draftOrder.length) return null;
+  if (state.currentPickIndex >= state.draftOrder.length) return null;
+  return state.users.find(u => u.id === state.draftOrder[state.currentPickIndex]);
+}
+
+function userPicks(userId) {
+  return state.picks.filter(p => p.userId === userId);
+}
+
+function categoryAlreadyUsed(userId, categoryId) {
+  return userPicks(userId).some(p => p.category === categoryId);
+}
+
+function advancePick() {
+  state.currentPickIndex++;
+  persist();
+}
+
+function makePick(userId, categoryId, playerId) {
+  if (pickedPlayerIds().has(playerId)) return 'That player is already taken.';
+  if (categoryAlreadyUsed(userId, categoryId)) return 'You already used that category.';
+  const round = Math.floor(state.currentPickIndex / state.users.length) + 1;
+  state.picks.push({
+    userId, category:categoryId, playerId,
+    round, overall: state.currentPickIndex + 1
+  });
+  advancePick();
+  return null;
+}
+
+function undoLastPick() {
+  if (!state.picks.length) return;
+  state.picks.pop();
+  state.currentPickIndex = Math.max(0, state.currentPickIndex - 1);
+  persist();
+  render();
+}
+
+function draftComplete() {
+  return state.users.length > 0 && state.picks.length >= state.users.length * state.picksPerUser;
+}
+
+// ---------- WINNER DETERMINATION ----------
+function winnerPlayerId() {
+  // Whoever has the lowest "total" score and madeCut = true and is the recognized champion.
+  // We treat: winner = player whose `state.scores[id].pos === '1'` (leader, final).
+  // If event incomplete, return null.
+  const scoresByPos1 = Object.entries(state.scores).find(([_, s]) => s && (s.pos === '1' || s.pos === 'T1') && s.isWinner);
+  if (scoresByPos1) return scoresByPos1[0];
+  return null;
+}
+
+function computeStandings() {
+  return state.users.map(u => {
+    const picks = userPicks(u.id);
+    const playerScores = picks.map(p => {
+      const pl = state.field.find(f => f.id === p.playerId);
+      const s = state.scores[p.playerId] || {};
+      return { pick: p, player: pl, score: s };
+    });
+    const total = playerScores.reduce((a,ps) => a + (Number(ps.score.total) || 0), 0);
+    const cuts = playerScores.filter(ps => ps.score.madeCut === true).length;
+    const ownsWinner = playerScores.some(ps => state.scores[ps.pick.playerId]?.isWinner);
+    return { user:u, picks:playerScores, total, cuts, ownsWinner };
+  });
+}
+
+function orderedStandings() {
+  const rows = computeStandings();
+  // Rule 1: owner of the winning player
+  rows.sort((a,b) => {
+    if (a.ownsWinner !== b.ownsWinner) return a.ownsWinner ? -1 : 1;
+    // Rule 2: most cuts made
+    if (b.cuts !== a.cuts) return b.cuts - a.cuts;
+    // Rule 3: lowest cumulative score among tied cut counts
+    return a.total - b.total;
+  });
+  return rows;
+}
+
+// ---------- ESPN SYNC ----------
+async function syncScores() {
+  if (!state.tournamentId) return;
+  toast('Fetching ESPN leaderboard…');
+  try {
+    const url = 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard';
+    const res = await fetch(url, { cache:'no-store' });
+    if (!res.ok) throw new Error('ESPN fetch failed');
+    const data = await res.json();
+    applyEspnData(data);
+    state.lastSync = new Date().toISOString();
+    persist();
+    render();
+    toast('Scores synced from ESPN.');
+  } catch (e) {
+    console.warn(e);
+    toast('Could not reach ESPN. Try again later.');
+  }
+}
+
+function normalizeName(n) {
+  return (n||'').toLowerCase()
+    .replace(/[\u00C0-\u024F]/g, c => c.normalize('NFD').replace(/[\u0300-\u036f]/g,''))
+    .replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim();
+}
+
+function applyEspnData(data) {
+  // ESPN returns events[0].competitions[0].competitors[*] with athlete.displayName,
+  // statistics/score/linescores, status, etc. Be defensive: shape varies.
+  const event = data?.events?.[0];
+  if (!event) return;
+  const comp = event.competitions?.[0];
+  const competitors = comp?.competitors || [];
+  const status = comp?.status?.type?.state || comp?.status?.type?.name || '';
+  const isFinal = /post|final|complete/i.test(status);
+
+  const byName = new Map();
+  state.field.forEach(p => byName.set(normalizeName(p.name), p));
+
+  // find winner candidate
+  let winnerId = null;
+  if (isFinal) {
+    const w = competitors.find(c => c.status?.position?.id === '1' || c.status?.position?.displayName === '1' || c.winner === true);
+    if (w) {
+      const wp = byName.get(normalizeName(w.athlete?.displayName));
+      if (wp) winnerId = wp.id;
+    }
+  }
+
+  competitors.forEach(c => {
+    const ath = c.athlete || {};
+    const key = normalizeName(ath.displayName);
+    const p = byName.get(key);
+    if (!p) return;
+
+    // Position & cut
+    const posTxt = (c.status?.position?.displayName ?? c.status?.position?.id ?? '').toString();
+    const displayValue = c.score ?? c.status?.displayValue ?? '';
+    // Cut detection: ESPN sets status.type.name = "STATUS_CUT" or position CUT / WD / MDF
+    const stateName = (c.status?.type?.name || '').toUpperCase();
+    const madeCut =
+      /CUT/.test(stateName) ? false :
+      /WD|DQ/.test(stateName) ? false :
+      (c.status?.period || 0) >= 3 ? true :
+      null; // null = unknown / tournament not past cut line
+
+    // Total to-par
+    const toPar = parseScore(displayValue) ?? parseScore(c.statistics?.find?.(s => /score|total/i.test(s.name))?.displayValue);
+
+    state.scores[p.id] = {
+      total: toPar,
+      today: parseScore(c.linescores?.[c.linescores.length-1]?.displayValue),
+      thru:  c.status?.thru ?? c.status?.displayValue ?? '',
+      rounds: (c.linescores||[]).map(l => l.value),
+      pos: posTxt,
+      madeCut,
+      isWinner: winnerId === p.id
+    };
+  });
+}
+
+function parseScore(v) {
+  if (v == null) return null;
+  const s = String(v).trim();
+  if (!s || s === '-') return null;
+  if (/^E$/i.test(s)) return 0;
+  const n = parseInt(s.replace(/\+/,''), 10);
+  return isNaN(n) ? null : n;
+}
+
+// ---------- ROUTING ----------
+const routes = ['home','setup','draft','scoreboard'];
+function currentRoute() {
+  if (!state.tournamentId) return 'home';
+  if (!state.users.length)  return 'setup';
+  if (!draftComplete())     return 'draft';
+  return 'scoreboard';
+}
+
+// ---------- RENDER ----------
+function render() {
+  const root = $('#app'); root.innerHTML = '';
+  const r = currentRoute();
+  const view =
+    r === 'home'       ? renderHome() :
+    r === 'setup'      ? renderSetup() :
+    r === 'draft'      ? renderDraft() :
+                         renderScoreboard();
+  view.classList.add('fade-in');
+  root.appendChild(view);
+}
+
+// ---------- HOME ----------
+function renderHome() {
+  const wrap = el('section');
+  wrap.appendChild(el('div',{class:'mb-6'},
+    el('h2',{class:'font-serif text-3xl sm:text-4xl text-masters-800 font-extrabold'},"Choose a Major"),
+    el('p', {class:'text-gray-600 mt-1 text-sm'},"Pick a tournament to start a snake-draft Pick'em. Four picks per player — one from each category.")
+  ));
+
+  const year = new Date().getFullYear();
+  const grid = el('div',{class:'grid grid-cols-1 sm:grid-cols-2 gap-5'});
+  TOURNAMENTS.forEach(t => {
+    const card = el('button',{
+      class:'tournament-card card text-left p-5 h-40',
+      onclick:()=>startTournament(t.id)
+    },
+      el('div',{class:'accent', style:`background:${t.color}`}),
+      el('div',{class:'ml-3 h-full flex flex-col justify-between'},
+        el('div',{},
+          el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, `${t.month} • ${year}`),
+          el('h3',{class:'font-serif text-2xl sm:text-3xl text-masters-800 mt-1'}, t.name)
+        ),
+        el('div',{class:'text-sm text-gray-600'},
+          el('div',{class:'font-medium text-gray-800'}, t.venue),
+          el('div',{}, t.location)
+        )
+      )
+    );
+    grid.appendChild(card);
+  });
+  wrap.appendChild(grid);
+
+  // Shared game import hint
+  wrap.appendChild(el('div',{class:'mt-8 card p-5'},
+    el('h3',{class:'font-serif text-lg text-masters-800 mb-1'},'Joining a shared game?'),
+    el('p',{class:'text-sm text-gray-600 mb-3'},'Paste a shared URL below to load its picks and roster.'),
+    (()=>{
+      const inp = el('input',{type:'text',placeholder:'https://…/#g=…',id:'import-url'});
+      const btn = el('button',{class:'btn btn-primary mt-3',onclick:()=>{
+        const v = $('#import-url').value.trim();
+        const m = v.match(/#g=([^&]+)/);
+        if (!m) return toast('That doesn\'t look like a share URL.');
+        const payload = decodePayload(m[1]);
+        if (!payload) return toast('Invalid share payload.');
+        persist(payload); render(); toast('Loaded shared game.');
+      }},'Load Shared Game');
+      const row = el('div',{}); row.appendChild(inp); row.appendChild(btn); return row;
+    })()
+  ));
+  return wrap;
+}
+
+function startTournament(id) {
+  state = { ...DEFAULT_STATE(), tournamentId:id };
+  persist();
+  render();
+}
+
+// ---------- SETUP (roster + users + start draft) ----------
+function renderSetup() {
+  const t = TOURNAMENTS.find(x => x.id === state.tournamentId);
+  const wrap = el('section');
+  wrap.appendChild(el('div',{class:'flex items-baseline justify-between flex-wrap gap-2 mb-5'},
+    el('div',{},
+      el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, 'Setup'),
+      el('h2',{class:'font-serif text-3xl text-masters-800 font-extrabold'}, t.name),
+      el('div',{class:'text-gray-600 text-sm mt-1'}, `${t.venue} • ${t.location}`)
+    ),
+    el('button',{class:'btn btn-ghost', onclick:()=>{ state.tournamentId=null; persist(); render(); }}, '← Choose Different Major')
+  ));
+
+  // Users
+  const usersCard = el('div',{class:'card p-5 mb-5'},
+    el('h3',{class:'font-serif text-xl text-masters-800 mb-1'},'Players'),
+    el('p',{class:'text-sm text-gray-600 mb-3'},'Add 2 or more players. Draft order is the order you list them here.'),
+    (()=>{
+      const list = el('div',{class:'space-y-2'});
+      state.users.forEach((u,i) => {
+        list.appendChild(el('div',{class:'flex items-center gap-2'},
+          el('span',{class:'w-6 text-gray-500 text-sm text-right'}, String(i+1)+'.'),
+          el('input',{type:'text',value:u.name, oninput:(e)=>{ u.name = e.target.value; persist(); }}),
+          el('button',{class:'btn btn-ghost',onclick:()=>{ state.users.splice(i,1); persist(); render(); }}, 'Remove')
+        ));
+      });
+      return list;
+    })(),
+    el('div',{class:'mt-3 flex gap-2'},
+      el('button',{class:'btn btn-ghost',onclick:()=>{
+        state.users.push({ id: uid('u'), name: `Player ${state.users.length+1}` });
+        persist(); render();
+      }},'+ Add Player')
+    )
+  );
+  wrap.appendChild(usersCard);
+
+  // Picks per user + category overview
+  const optsCard = el('div',{class:'card p-5 mb-5'},
+    el('h3',{class:'font-serif text-xl text-masters-800 mb-1'},'Draft Categories'),
+    el('p',{class:'text-sm text-gray-600 mb-3'},'Each player drafts one from each of the four categories using snake order.'),
+    el('div',{class:'grid grid-cols-1 sm:grid-cols-2 gap-3'},
+      ...CATEGORIES.map(c => el('div',{class:'border border-gray-200 rounded-xl p-3'},
+        el('div',{class:'font-semibold text-masters-800'}, c.label),
+        el('div',{class:'text-xs text-gray-600 mt-1'}, c.help)
+      ))
+    )
+  );
+  wrap.appendChild(optsCard);
+
+  // Roster editor (collapsible)
+  wrap.appendChild(renderRosterEditor());
+
+  // Start button
+  const canStart = state.users.length >= 2;
+  wrap.appendChild(el('div',{class:'mt-6 flex items-center gap-2'},
+    el('button',{
+      class:'btn btn-primary',
+      disabled: !canStart,
+      onclick:()=>{
+        state.draftOrder = buildSnakeOrder(state.users.map(u=>u.id), state.picksPerUser);
+        state.currentPickIndex = 0;
+        state.picks = [];
+        persist(); render();
+      }
+    }, 'Start Snake Draft'),
+    !canStart ? el('span',{class:'text-sm text-gray-500'}, 'Add at least 2 players.') : null
+  ));
+  return wrap;
+}
+
+function renderRosterEditor() {
+  const card = el('details',{class:'card p-5'});
+  const sum = el('summary',{class:'flex items-center justify-between'},
+    el('div',{},
+      el('h3',{class:'font-serif text-xl text-masters-800 inline'},'Field / Roster'),
+      el('span',{class:'text-sm text-gray-600 ml-2'}, `${state.field.length} players`)
+    ),
+    el('span',{class:'text-sm text-masters-700 font-semibold'},'Edit ▾')
+  );
+  card.appendChild(sum);
+
+  const body = el('div',{class:'mt-4'});
+  body.appendChild(el('p',{class:'text-xs text-gray-600 mb-3'},
+    'Edit OWGR rank, country (USA or 3-letter), past Majors, and First-Timer flags. These drive category eligibility.'
+  ));
+
+  const table = el('div',{class:'overflow-auto border border-gray-200 rounded-lg'});
+  const t = el('table',{class:'min-w-[900px] w-full text-sm'});
+  t.appendChild(el('thead',{class:'bg-gray-50 text-gray-600'},
+    el('tr',{},
+      ...['Name','Country','OWGR','Won Majors','First-Timer At','Actions'].map(h =>
+        el('th',{class:'text-left px-3 py-2 font-semibold text-xs uppercase tracking-wider'}, h))
+    )));
+  const tbody = el('tbody',{});
+  state.field.forEach((p,i) => {
+    tbody.appendChild(el('tr',{class:'border-t border-gray-100'},
+      el('td',{class:'px-3 py-2'}, el('input',{type:'text',value:p.name,oninput:(e)=>{p.name=e.target.value; persist();}})),
+      el('td',{class:'px-3 py-2 w-24'}, el('input',{type:'text',value:p.country||'',oninput:(e)=>{p.country=e.target.value.toUpperCase().slice(0,3); persist();}})),
+      el('td',{class:'px-3 py-2 w-24'}, el('input',{type:'number',value:p.owgr,oninput:(e)=>{p.owgr=Number(e.target.value)||0; persist();}})),
+      el('td',{class:'px-3 py-2'}, majorsCheckboxes(p, 'majorsWon')),
+      el('td',{class:'px-3 py-2'}, majorsCheckboxes(p, 'firstTimerAt')),
+      el('td',{class:'px-3 py-2'}, el('button',{class:'btn btn-ghost',onclick:()=>{ state.field.splice(i,1); persist(); render(); }},'Remove'))
+    ));
+  });
+  t.appendChild(tbody);
+  table.appendChild(t);
+  body.appendChild(table);
+
+  body.appendChild(el('div',{class:'mt-3 flex gap-2 flex-wrap'},
+    el('button',{class:'btn btn-ghost',onclick:()=>{
+      state.field.push({ id: uid('p'), name: 'New Player', country:'USA', owgr: 999, majorsWon:[], firstTimerAt:[] });
+      persist(); render();
+    }},'+ Add Player'),
+    el('button',{class:'btn btn-ghost',onclick:()=>{ state.field = [...SEED_FIELD]; persist(); render(); toast('Reset to seed field.'); }},'Reset to Seed Field'),
+    el('button',{class:'btn btn-ghost',onclick:()=>pullFieldFromEspn()},'Pull Field from ESPN')
+  ));
+  card.appendChild(body);
+  return card;
+}
+
+function majorsCheckboxes(player, key) {
+  const wrap = el('div',{class:'flex flex-wrap gap-1'});
+  TOURNAMENTS.forEach(t => {
+    const on = (player[key]||[]).includes(t.id);
+    const b = el('button',{
+      class:'pill ' + (on ? 'pill-green' : ''),
+      onclick:()=>{
+        const arr = new Set(player[key]||[]);
+        on ? arr.delete(t.id) : arr.add(t.id);
+        player[key] = [...arr];
+        persist(); render();
+      }
+    }, t.shortName);
+    wrap.appendChild(b);
+  });
+  return wrap;
+}
+
+async function pullFieldFromEspn() {
+  toast('Loading field from ESPN…');
+  try {
+    const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard');
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    const comps = data?.events?.[0]?.competitions?.[0]?.competitors || [];
+    if (!comps.length) throw new Error('No competitors returned');
+    const existingIds = new Set(state.field.map(p=>p.id));
+    comps.forEach((c,i) => {
+      const ath = c.athlete || {};
+      const name = ath.displayName || ath.fullName;
+      if (!name) return;
+      const id = 'espn_' + (ath.id || normalizeName(name).replace(/\s+/g,'_'));
+      if (existingIds.has(id)) return;
+      state.field.push({
+        id,
+        name,
+        country: (ath.flag?.alt || ath.birthPlace?.country || 'USA').toUpperCase().slice(0,3),
+        owgr: (i+1), // best-effort rank from leaderboard ordering
+        majorsWon: [],
+        firstTimerAt: []
+      });
+    });
+    persist(); render();
+    toast(`Field loaded (${comps.length}). Verify OWGR/majors before drafting.`);
+  } catch (e) {
+    console.warn(e);
+    toast('ESPN field fetch failed.');
+  }
+}
+
+// ---------- DRAFT ----------
+function renderDraft() {
+  const t = TOURNAMENTS.find(x=>x.id===state.tournamentId);
+  const picker = currentPicker();
+  const round = Math.floor(state.currentPickIndex / state.users.length) + 1;
+  const picksTaken = pickedPlayerIds();
+
+  const wrap = el('section');
+  wrap.appendChild(el('div',{class:'flex items-baseline justify-between flex-wrap gap-2 mb-5'},
+    el('div',{},
+      el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, 'Snake Draft'),
+      el('h2',{class:'font-serif text-3xl text-masters-800 font-extrabold'}, t.name),
+      el('div',{class:'text-gray-600 text-sm mt-1'},
+        `Pick ${state.currentPickIndex+1} of ${state.draftOrder.length} • Round ${round} of ${state.picksPerUser}`)
+    ),
+    el('div',{class:'flex items-center gap-2'},
+      el('button',{class:'btn btn-ghost', onclick:undoLastPick, disabled: state.picks.length===0}, 'Undo Last'),
+      el('button',{class:'btn btn-ghost', onclick:()=>{ state.users=[]; state.draftOrder=[]; state.picks=[]; state.currentPickIndex=0; persist(); render(); }}, 'Back to Setup')
+    )
+  ));
+
+  // On the clock card
+  const onClock = el('div',{class:'card p-5 mb-5 border-masters-600 border-2'},
+    el('div',{class:'flex items-center justify-between flex-wrap gap-3'},
+      el('div',{},
+        el('div',{class:'text-xs uppercase tracking-wider text-masters-700 font-bold'}, 'On the Clock'),
+        el('div',{class:'font-serif text-3xl text-masters-800 mt-1'}, picker ? picker.name : '—'),
+        el('div',{class:'text-sm text-gray-600 mt-1'}, `Round ${round} • Pick #${state.currentPickIndex+1}`)
+      ),
+      el('div',{class:'text-right'},
+        el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, 'Used by '+ (picker?.name||'')),
+        el('div',{class:'mt-1 flex flex-wrap gap-1 justify-end'},
+          ...(picker ? CATEGORIES.map(c => {
+            const used = categoryAlreadyUsed(picker.id, c.id);
+            return el('span',{class:'pill ' + (used ? 'pill-red' : 'pill-green')}, c.label + (used?' ✓':''));
+          }) : [])
+        )
+      )
+    )
+  );
+  wrap.appendChild(onClock);
+
+  // Category dropdowns
+  if (picker) {
+    const grid = el('div',{class:'grid grid-cols-1 sm:grid-cols-2 gap-4'});
+    CATEGORIES.forEach(c => {
+      const used = categoryAlreadyUsed(picker.id, c.id);
+      const eligible = state.field
+        .filter(p => isPlayerInCategory(p, c.id, state.tournamentId))
+        .filter(p => !picksTaken.has(p.id))
+        .sort((a,b) => a.owgr - b.owgr);
+
+      const sel = el('select',{disabled: used || eligible.length===0, id:'sel_'+c.id},
+        el('option',{value:''}, used ? 'Already used' : (eligible.length===0 ? 'No eligible players' : 'Select a player…')),
+        ...eligible.map(p => el('option',{value:p.id}, `#${p.owgr} ${p.name} (${p.country})`))
+      );
+
+      const btn = el('button',{
+        class:'btn btn-primary mt-3 w-full',
+        disabled: used || eligible.length===0,
+        onclick:()=>{
+          const val = sel.value;
+          if (!val) return toast('Choose a player first.');
+          const err = makePick(picker.id, c.id, val);
+          if (err) return toast(err);
+          persist(); render();
+        }
+      }, used ? 'Used' : `Pick ${c.label}`);
+
+      grid.appendChild(el('div',{class:'card p-4'},
+        el('div',{class:'flex items-center justify-between'},
+          el('div',{class:'font-serif text-lg text-masters-800'}, c.label),
+          el('div',{class:'text-xs text-gray-500'}, `${eligible.length} eligible`)
+        ),
+        el('div',{class:'text-xs text-gray-600 mb-2'}, c.help),
+        sel, btn
+      ));
+    });
+    wrap.appendChild(grid);
+  } else {
+    wrap.appendChild(el('div',{class:'card p-5 text-center'},'Draft complete.'));
+  }
+
+  // Draft board
+  wrap.appendChild(renderDraftBoard());
+
+  return wrap;
+}
+
+function renderDraftBoard() {
+  const card = el('div',{class:'card p-5 mt-6'});
+  card.appendChild(el('div',{class:'flex items-center justify-between mb-3'},
+    el('h3',{class:'font-serif text-xl text-masters-800'},'Draft Board'),
+    el('div',{class:'text-xs text-gray-500'}, `${state.picks.length}/${state.draftOrder.length} picks made`)
+  ));
+
+  // Group picks by user
+  const grid = el('div',{class:'grid grid-cols-1 md:grid-cols-2 gap-4'});
+  state.users.forEach(u => {
+    const picks = userPicks(u.id);
+    const cats = CATEGORIES.map(c => {
+      const pick = picks.find(p => p.category === c.id);
+      const player = pick ? state.field.find(f => f.id === pick.playerId) : null;
+      return el('div',{class:'flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0'},
+        el('div',{class:'text-sm text-gray-500'}, c.label),
+        el('div',{class:'text-sm font-medium text-gray-800 text-right'},
+          player ? `${player.name} `  : '—',
+          player ? el('span',{class:'text-gray-500 text-xs'}, `#${player.owgr}`) : null
+        )
+      );
+    });
+    grid.appendChild(el('div',{class:'border border-gray-200 rounded-xl p-3'},
+      el('div',{class:'flex items-center justify-between mb-2'},
+        el('div',{class:'font-serif text-lg text-masters-800'}, u.name),
+        el('div',{class:'text-xs text-gray-500'}, `${picks.length}/${state.picksPerUser}`)
+      ),
+      ...cats
+    ));
+  });
+  card.appendChild(grid);
+  return card;
+}
+
+// ---------- SCOREBOARD ----------
+function renderScoreboard() {
+  const t = TOURNAMENTS.find(x=>x.id===state.tournamentId);
+  const wrap = el('section');
+  wrap.appendChild(el('div',{class:'flex items-baseline justify-between flex-wrap gap-2 mb-5'},
+    el('div',{},
+      el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, 'Live Scoreboard'),
+      el('h2',{class:'font-serif text-3xl text-masters-800 font-extrabold'}, t.name),
+      el('div',{class:'text-gray-600 text-sm mt-1'},
+        state.lastSync ? `Last sync: ${new Date(state.lastSync).toLocaleString()}` : 'No sync yet.')
+    ),
+    el('div',{class:'flex items-center gap-2'},
+      el('button',{class:'btn btn-primary', onclick:syncScores},'↻ Sync Scores'),
+      el('button',{class:'btn btn-ghost', onclick:()=>{ const url = buildShareUrl(); navigator.clipboard.writeText(url); toast('Share URL copied.'); }}, 'Share'),
+      el('button',{class:'btn btn-ghost', onclick:()=>{ state.draftOrder=[]; state.picks=[]; state.currentPickIndex=0; persist(); render(); }}, 'Re-draft')
+    )
+  ));
+
+  const rows = orderedStandings();
+
+  // Standings summary
+  const lead = rows[0];
+  const summary = el('div',{class:'card p-4 mb-5 flex flex-wrap items-center justify-between gap-3'},
+    el('div',{},
+      el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'},'Current Leader'),
+      el('div',{class:'font-serif text-2xl text-masters-800'}, lead?.user?.name || '—'),
+      el('div',{class:'text-sm text-gray-600'},
+        lead?.ownsWinner ? 'Holds tournament champion.' :
+        lead ? `${lead.cuts} cuts made • Total ${fmtScore(lead.total)}` : ''
+      )
+    ),
+    el('div',{class:'flex items-center gap-2'},
+      ...rows.map((r,i) => el('div',{class:'text-center min-w-[90px] border border-gray-200 rounded-lg p-2 '+(i===0?'winner-glow':'')},
+        el('div',{class:'text-xs text-gray-500'}, `#${i+1}`),
+        el('div',{class:'font-semibold text-sm'}, r.user.name),
+        el('div',{class:'text-xs text-gray-600'}, `Cuts ${r.cuts} • ${fmtScore(r.total)}`)
+      ))
+    )
+  );
+  wrap.appendChild(summary);
+
+  // Team cards
+  const grid = el('div',{class:'grid grid-cols-1 md:grid-cols-2 gap-5'});
+  rows.forEach((row,idx) => {
+    const team = el('div',{class:'card p-4 ' + (idx===0 ? 'winner-glow' : '')});
+    team.appendChild(el('div',{class:'flex items-center justify-between mb-3'},
+      el('div',{},
+        el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, `Team • Rank #${idx+1}`),
+        el('div',{class:'font-serif text-2xl text-masters-800'}, row.user.name)
+      ),
+      el('div',{class:'text-right'},
+        el('div',{class:'text-xs text-gray-500'}, 'Total'),
+        el('div',{class:`text-2xl ${scoreClass(row.total)}`}, fmtScore(row.total)),
+        el('div',{class:'text-xs text-gray-500'}, `${row.cuts} made cut`)
+      )
+    ));
+    // Player rows
+    const table = el('table',{class:'w-full text-sm'});
+    table.appendChild(el('thead',{class:'text-gray-500'},
+      el('tr',{},
+        el('th',{class:'text-left py-1 pr-2'},'Category'),
+        el('th',{class:'text-left py-1 pr-2'},'Player'),
+        el('th',{class:'text-left py-1 pr-2'},'Pos'),
+        el('th',{class:'text-right py-1 pr-2'},'Score'),
+        el('th',{class:'text-center py-1'},'Cut')
+      )));
+    const tbody = el('tbody',{});
+    CATEGORIES.forEach(c => {
+      const ps = row.picks.find(p => p.pick.category === c.id);
+      if (!ps) return;
+      const s = ps.score || {};
+      const cutCell =
+        s.madeCut === true  ? el('span',{class:'tick'},'✓') :
+        s.madeCut === false ? el('span',{class:'text-flag font-bold'},'—') :
+        el('span',{class:'dash'},'–');
+      tbody.appendChild(el('tr',{class:'border-t border-gray-100'},
+        el('td',{class:'py-2 pr-2 text-gray-500'}, c.label),
+        el('td',{class:'py-2 pr-2'},
+          el('div',{class:'font-medium'}, ps.player?.name || '—'),
+          el('div',{class:'text-xs text-gray-500'}, ps.player ? `#${ps.player.owgr} • ${ps.player.country}` : '')
+        ),
+        el('td',{class:'py-2 pr-2 text-gray-600'}, s.pos || '—'),
+        el('td',{class:`py-2 pr-2 text-right ${scoreClass(s.total)}`}, fmtScore(s.total)),
+        el('td',{class:'py-2 text-center'}, cutCell)
+      ));
+    });
+    table.appendChild(tbody);
+    team.appendChild(table);
+    grid.appendChild(team);
+  });
+  wrap.appendChild(grid);
+
+  // Rules reminder
+  wrap.appendChild(el('div',{class:'mt-6 card p-4 text-xs text-gray-600'},
+    el('div',{class:'font-semibold text-gray-800 mb-1'},'Winner Rules'),
+    '1. User who picked the tournament winner wins. 2. Otherwise, most players making the 36-hole cut. 3. Tie-breaker: lowest cumulative team score.'
+  ));
+  return wrap;
+}
+
+// ---------- SHARE ----------
+function buildShareUrl() {
+  const payload = { ...state };
+  // drop large fields that can be rebuilt or are transient
+  const slim = {
+    tournamentId: payload.tournamentId,
+    users: payload.users,
+    picksPerUser: payload.picksPerUser,
+    draftOrder: payload.draftOrder,
+    currentPickIndex: payload.currentPickIndex,
+    picks: payload.picks,
+    field: payload.field, // include so dropdowns match on join
+    scores: payload.scores,
+    lastSync: payload.lastSync
+  };
+  const encoded = encodePayload(slim);
+  const base = window.location.href.split('#')[0];
+  return `${base}#g=${encoded}`;
+}
+
+// ---------- NAV / WIRING ----------
+$('#nav-home').addEventListener('click', () => {
+  if (state.picks.length && !confirm('Leave this game and return to home? Your current picks stay saved.')) return;
+  state.tournamentId = null; persist(); render();
+});
+$('#nav-share').addEventListener('click', () => {
+  if (!state.tournamentId) return toast('Pick a tournament first.');
+  const url = buildShareUrl();
+  navigator.clipboard.writeText(url).then(() => toast('Share URL copied to clipboard.'));
+});
+$('#nav-reset').addEventListener('click', resetAll);
+
+window.addEventListener('hashchange', () => {
+  const h = window.location.hash;
+  if (h && h.startsWith('#g=')) {
+    const p = decodePayload(h.slice(3));
+    if (p) { persist(p); history.replaceState(null,'',window.location.pathname); render(); toast('Loaded shared game.'); }
+  }
+});
+
+render();
+</script>
+</body>
+</html>

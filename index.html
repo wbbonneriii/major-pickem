@@ -124,6 +124,7 @@
 
 // ---------- CONSTANTS ----------
 const LS_KEY = 'major-pickem:v1';
+const GAMES_KEY = 'major-pickem:games:v1';
 // Bump when SEED_FIELD changes so existing users get the refreshed roster on next load.
 const SEED_VERSION = 7;
 
@@ -271,6 +272,10 @@ const totalPicksPerUser = (pbc, alts) => starterPicksPerUser(pbc) + (alts || 0);
 
 const DEFAULT_STATE = () => ({
   seedVersion: SEED_VERSION,
+  gameId: null,               // identifier in the multi-game store; null when no game is active
+  gameName: '',               // user-facing label for this game
+  createdAt: null,
+  updatedAt: null,
   year: DEFAULT_YEAR,         // year of the Major being played
   tournamentId: null,         // which Major this game is for
   users: [],                  // [{id, name}]
@@ -326,7 +331,55 @@ function loadState() {
 }
 function persist(next) {
   state = next ?? state;
+  state.updatedAt = new Date().toISOString();
   try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+  if (state.gameId) {
+    try {
+      const games = listGames();
+      games[state.gameId] = state;
+      localStorage.setItem(GAMES_KEY, JSON.stringify(games));
+    } catch (_) {}
+  }
+}
+
+// ---------- GAMES STORE ----------
+function listGames() {
+  try {
+    const raw = localStorage.getItem(GAMES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) { return {}; }
+}
+function deleteGame(id) {
+  const games = listGames();
+  if (!games[id]) return;
+  delete games[id];
+  try { localStorage.setItem(GAMES_KEY, JSON.stringify(games)); } catch (_) {}
+  if (state.gameId === id) {
+    const keepYear = state.year;
+    state = { ...DEFAULT_STATE(), year: keepYear };
+    try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (_) {}
+  }
+}
+function loadGame(id) {
+  const games = listGames();
+  const g = games[id];
+  if (!g) return false;
+  state = { ...DEFAULT_STATE(), ...g };
+  if (state.seedVersion !== SEED_VERSION) {
+    state.field = SEED_FIELD;
+    state.seedVersion = SEED_VERSION;
+  }
+  ensureDraftOrderCovers(state);
+  persist();
+  return true;
+}
+function gamesForTournament(tournamentId, year) {
+  return Object.values(listGames())
+    .filter(g => g.tournamentId === tournamentId && g.year === year)
+    .sort((a,b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+}
+function nextGameNumber(tournamentId, year) {
+  return gamesForTournament(tournamentId, year).length + 1;
 }
 // Incoming share payloads only carry players referenced by picks/scores, so merge
 // the local SEED_FIELD in as a fallback and pin seedVersion to prevent a later

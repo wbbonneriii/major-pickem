@@ -81,7 +81,6 @@
     </div>
     <nav class="flex items-center gap-2">
       <button id="nav-home" class="btn btn-ghost text-masters-700">Home</button>
-      <button id="nav-share" class="btn btn-ghost text-masters-700">Share</button>
       <button id="nav-reset" class="btn btn-danger">Reset</button>
     </nav>
   </div>
@@ -288,15 +287,18 @@ const DEFAULT_STATE = () => ({
 let state = loadState();
 
 function loadState() {
-  // 1) URL share payload takes precedence on first load
+  // 1) URL share payload takes precedence on first load.
+  // NOTE: can't call persist() here — the global `state` binding is in the TDZ
+  // because `let state = loadState()` is still resolving. persist() reads `state`
+  // on its RHS and throws ReferenceError, which the try/catch below silently
+  // swallows — making the shared game invisibly fall back to localStorage.
   const hash = window.location.hash;
   if (hash && hash.startsWith('#g=')) {
     try {
       const payload = decodePayload(hash.slice(3));
       if (payload) {
         hydrateSharedPayload(payload);
-        persist(payload);
-        // keep URL clean after ingest
+        try { localStorage.setItem(LS_KEY, JSON.stringify(payload)); } catch (_) {}
         history.replaceState(null, '', window.location.pathname + window.location.search);
         return payload;
       }
@@ -1519,7 +1521,6 @@ $('#nav-home').addEventListener('click', () => {
   if (state.picks.length && !confirm('Leave this game and return to home? Your current picks stay saved.')) return;
   state.tournamentId = null; persist(); render();
 });
-$('#nav-share').addEventListener('click', openShareModal);
 $('#nav-reset').addEventListener('click', resetAll);
 
 window.addEventListener('hashchange', () => {

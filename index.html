@@ -104,18 +104,52 @@
 // ---------- CONSTANTS ----------
 const LS_KEY = 'major-pickem:v1';
 // Bump when SEED_FIELD changes so existing users get the refreshed roster on next load.
-const SEED_VERSION = 3;
+const SEED_VERSION = 4;
 
-// ESPN event IDs change each year; these can be updated here without code changes elsewhere.
-// When the event is live/recent, ESPN's generic "pga/leaderboard" returns the active event automatically.
-// 2026 ESPN event IDs (discovered via sports.core.api.espn.com/v2/sports/golf/leagues/pga/events).
-// Update yearly — the sync endpoints accept ?event={id} to pin to a specific tournament.
+// Year-independent tournament metadata.
 const TOURNAMENTS = [
-  { id:'masters',  name:'The Masters',             shortName:'Masters',   venue:'Augusta National Golf Club', location:'Augusta, GA',    month:'April',   color:'#006747', accent:'#b38b00', espnEventId:'401811941' },
-  { id:'pga',      name:'PGA Championship',         shortName:'PGA',       venue:'Aronimink Golf Club',        location:'Newtown Square, PA', month:'May', color:'#1b365d', accent:'#c9a227', espnEventId:'401811947' },
-  { id:'usopen',   name:'U.S. Open',                shortName:'US Open',   venue:'Shinnecock Hills',           location:'Southampton, NY', month:'June',    color:'#8f1b1b', accent:'#0b2545', espnEventId:'401811952' },
-  { id:'theopen',  name:'The Open Championship',    shortName:'The Open',  venue:'Royal Birkdale',             location:'Southport, England', month:'July', color:'#2c2c2c', accent:'#d4af37', espnEventId:'401811957' }
+  { id:'masters',  name:'The Masters',          shortName:'Masters',  month:'April', color:'#006747', accent:'#b38b00' },
+  { id:'pga',      name:'PGA Championship',     shortName:'PGA',      month:'May',   color:'#1b365d', accent:'#c9a227' },
+  { id:'usopen',   name:'U.S. Open',            shortName:'US Open',  month:'June',  color:'#8f1b1b', accent:'#0b2545' },
+  { id:'theopen',  name:'The Open Championship',shortName:'The Open', month:'July',  color:'#2c2c2c', accent:'#d4af37' }
 ];
+
+// Year-specific venue + ESPN event IDs. Add more years by appending entries here.
+// Event IDs come from: https://sports.core.api.espn.com/v2/sports/golf/leagues/pga/events?limit=100&dates={YEAR}
+const YEAR_DATA = {
+  2026: {
+    masters: { venue:'Augusta National Golf Club', location:'Augusta, GA',         espnEventId:'401811941' },
+    pga:     { venue:'Aronimink Golf Club',        location:'Newtown Square, PA',  espnEventId:'401811947' },
+    usopen:  { venue:'Shinnecock Hills',           location:'Southampton, NY',     espnEventId:'401811952' },
+    theopen: { venue:'Royal Birkdale',             location:'Southport, England',  espnEventId:'401811957' }
+  },
+  2025: {
+    masters: { venue:'Augusta National Golf Club', location:'Augusta, GA',         espnEventId:null },
+    pga:     { venue:'Quail Hollow Club',          location:'Charlotte, NC',       espnEventId:null },
+    usopen:  { venue:'Oakmont Country Club',       location:'Oakmont, PA',         espnEventId:null },
+    theopen: { venue:'Royal Portrush',             location:'Portrush, N. Ireland',espnEventId:null }
+  },
+  2024: {
+    masters: { venue:'Augusta National Golf Club', location:'Augusta, GA',         espnEventId:null },
+    pga:     { venue:'Valhalla Golf Club',         location:'Louisville, KY',      espnEventId:null },
+    usopen:  { venue:'Pinehurst No. 2',            location:'Pinehurst, NC',       espnEventId:null },
+    theopen: { venue:'Royal Troon',                location:'Troon, Scotland',     espnEventId:null }
+  }
+};
+const AVAILABLE_YEARS = Object.keys(YEAR_DATA).map(Number).sort((a,b)=>b-a);
+const DEFAULT_YEAR = 2026;
+
+// Merge year-independent tournament metadata with year-specific venue/eventId.
+function tournamentFor(id, year) {
+  year = year || state?.year || DEFAULT_YEAR;
+  const base = TOURNAMENTS.find(t => t.id === id);
+  if (!base) return null;
+  const y = YEAR_DATA[year]?.[id] || { venue:'TBD', location:'TBD', espnEventId:null };
+  return { ...base, ...y, year };
+}
+function tournamentsForYear(year) {
+  return TOURNAMENTS.map(t => tournamentFor(t.id, year));
+}
 
 // Category metadata (source of truth for dropdown rendering)
 const CATEGORIES = [
@@ -204,6 +238,7 @@ const picksPerUser = (pbc) => Object.values(pbc).reduce((a,b)=>a+b, 0);
 
 const DEFAULT_STATE = () => ({
   seedVersion: SEED_VERSION,
+  year: DEFAULT_YEAR,         // year of the Major being played
   tournamentId: null,         // which Major this game is for
   users: [],                  // [{id, name}]
   picksByCategory: { ...DEFAULT_PICKS_BY_CATEGORY },
@@ -453,7 +488,7 @@ function orderedStandings() {
 // event even weeks after it ends; /sports/golf/pga/scoreboard ignores ?event (returns current
 // week) so it's only useful as a "what's happening now" fallback.
 async function fetchEspnForTournament(tournamentId) {
-  const t = TOURNAMENTS.find(x => x.id === tournamentId);
+  const t = tournamentFor(tournamentId);
   const urls = [];
   if (t?.espnEventId) urls.push(`https://site.api.espn.com/apis/site/v2/sports/golf/leaderboard?event=${t.espnEventId}`);
   urls.push('https://site.api.espn.com/apis/site/v2/sports/golf/leaderboard'); // current-event fallback
@@ -482,7 +517,7 @@ async function fetchEspnForTournament(tournamentId) {
 
 async function syncScores() {
   if (!state.tournamentId) return;
-  const t = TOURNAMENTS.find(x => x.id === state.tournamentId);
+  const t = tournamentFor(state.tournamentId);
   toast(`Fetching ${t?.shortName || 'event'} leaderboard…`);
   try {
     const { data, tournamentMatch } = await fetchEspnForTournament(state.tournamentId);
@@ -602,14 +637,57 @@ function render() {
 // ---------- HOME ----------
 function renderHome() {
   const wrap = el('section');
-  wrap.appendChild(el('div',{class:'mb-6'},
-    el('h2',{class:'font-serif text-3xl sm:text-4xl text-masters-800 font-extrabold'},"Choose a Major"),
-    el('p', {class:'text-gray-600 mt-1 text-sm'},"Pick a tournament to start a snake-draft Pick'em. Four picks per player — one from each category.")
+  const year = state.year || DEFAULT_YEAR;
+
+  // Header + year picker
+  wrap.appendChild(el('div',{class:'mb-6 flex flex-wrap items-end justify-between gap-4'},
+    el('div',{},
+      el('h2',{class:'font-serif text-3xl sm:text-4xl text-masters-800 font-extrabold'},"Choose a Major"),
+      el('p', {class:'text-gray-600 mt-1 text-sm'},"Pick a tournament to start a snake-draft Pick'em.")
+    ),
+    el('div',{class:'flex flex-col'},
+      el('label',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1', for:'year-picker'},'Year'),
+      el('select',{
+        id:'year-picker',
+        style:'width:140px',
+        onchange:(e)=>{ state.year = Number(e.target.value); persist(); render(); }
+      }, ...AVAILABLE_YEARS.map(y =>
+        el('option',{value:String(y), selected: y===year ? 'selected' : null}, String(y))
+      ))
+    )
   ));
 
-  const year = new Date().getFullYear();
+  // In-progress banner (only when the user has an active tournament game going)
+  if (state.tournamentId) {
+    const activeT = tournamentFor(state.tournamentId);
+    const activeYear = state.year || DEFAULT_YEAR;
+    const phase = state.picks.length
+      ? (draftComplete() ? 'Scoreboard' : 'Draft in progress')
+      : (state.users.length ? 'Setup' : 'Setup');
+    wrap.appendChild(el('div',{class:'card p-4 mb-5 flex flex-wrap items-center justify-between gap-3 border-masters-600', style:'border-width:2px'},
+      el('div',{},
+        el('div',{class:'text-xs uppercase tracking-wider text-masters-700 font-bold'}, 'Game in Progress'),
+        el('div',{class:'font-serif text-xl text-masters-800 mt-1'}, `${activeT.name} • ${activeYear}`),
+        el('div',{class:'text-xs text-gray-600 mt-1'},
+          `${phase} • ${state.users.length} player${state.users.length===1?'':'s'} • ${state.picks.length} picks made`)
+      ),
+      el('div',{class:'flex gap-2'},
+        el('button',{class:'btn btn-primary', onclick:()=>render()}, 'Resume'),
+        el('button',{class:'btn btn-danger', onclick:()=>{
+          if (!confirm(`Delete the in-progress ${activeT.name} game? This cannot be undone.`)) return;
+          const keepYear = state.year;
+          state = { ...DEFAULT_STATE(), year: keepYear };
+          persist(); render();
+          toast('Game deleted.');
+        }}, 'Delete Game')
+      )
+    ));
+  }
+
+  // Tournament grid
   const grid = el('div',{class:'grid grid-cols-1 sm:grid-cols-2 gap-5'});
-  TOURNAMENTS.forEach(t => {
+  tournamentsForYear(year).forEach(t => {
+    const hasEventId = !!t.espnEventId;
     const card = el('button',{
       class:'tournament-card card text-left p-5 h-40',
       onclick:()=>startTournament(t.id)
@@ -620,45 +698,34 @@ function renderHome() {
           el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, `${t.month} • ${year}`),
           el('h3',{class:'font-serif text-2xl sm:text-3xl text-masters-800 mt-1'}, t.name)
         ),
-        el('div',{class:'text-sm text-gray-600'},
-          el('div',{class:'font-medium text-gray-800'}, t.venue),
-          el('div',{}, t.location)
+        el('div',{class:'text-sm text-gray-600 flex items-end justify-between gap-2'},
+          el('div',{},
+            el('div',{class:'font-medium text-gray-800'}, t.venue),
+            el('div',{}, t.location)
+          ),
+          hasEventId ? null : el('span',{class:'pill', style:'font-size:10px'},'Live sync unavailable')
         )
       )
     );
     grid.appendChild(card);
   });
   wrap.appendChild(grid);
-
-  // Shared game import hint
-  wrap.appendChild(el('div',{class:'mt-8 card p-5'},
-    el('h3',{class:'font-serif text-lg text-masters-800 mb-1'},'Joining a shared game?'),
-    el('p',{class:'text-sm text-gray-600 mb-3'},'Paste a shared URL below to load its picks and roster.'),
-    (()=>{
-      const inp = el('input',{type:'text',placeholder:'https://…/#g=…',id:'import-url'});
-      const btn = el('button',{class:'btn btn-primary mt-3',onclick:()=>{
-        const v = $('#import-url').value.trim();
-        const m = v.match(/#g=([^&]+)/);
-        if (!m) return toast('That doesn\'t look like a share URL.');
-        const payload = decodePayload(m[1]);
-        if (!payload) return toast('Invalid share payload.');
-        persist(payload); render(); toast('Loaded shared game.');
-      }},'Load Shared Game');
-      const row = el('div',{}); row.appendChild(inp); row.appendChild(btn); return row;
-    })()
-  ));
   return wrap;
 }
 
 function startTournament(id) {
-  state = { ...DEFAULT_STATE(), tournamentId:id };
+  if (state.tournamentId && state.tournamentId !== id && state.picks.length) {
+    if (!confirm('You have an in-progress game for a different Major. Start a new one and discard it?')) return;
+  }
+  const keepYear = state.year || DEFAULT_YEAR;
+  state = { ...DEFAULT_STATE(), year: keepYear, tournamentId: id };
   persist();
   render();
 }
 
 // ---------- SETUP (roster + users + start draft) ----------
 function renderSetup() {
-  const t = TOURNAMENTS.find(x => x.id === state.tournamentId);
+  const t = tournamentFor(state.tournamentId);
   const wrap = el('section');
   wrap.appendChild(el('div',{class:'flex items-baseline justify-between flex-wrap gap-2 mb-5'},
     el('div',{},
@@ -834,7 +901,7 @@ function countryCode(raw) {
 
 async function pullFieldFromEspn() {
   if (!state.tournamentId) return toast('Pick a tournament first.');
-  const t = TOURNAMENTS.find(x => x.id === state.tournamentId);
+  const t = tournamentFor(state.tournamentId);
   toast(`Loading ${t?.shortName} field from ESPN…`);
   try {
     const { data, tournamentMatch } = await fetchEspnForTournament(state.tournamentId);
@@ -877,7 +944,7 @@ async function pullFieldFromEspn() {
 
 // ---------- DRAFT ----------
 function renderDraft() {
-  const t = TOURNAMENTS.find(x=>x.id===state.tournamentId);
+  const t = tournamentFor(state.tournamentId);
   const picker = currentPicker();
   const round = Math.floor(state.currentPickIndex / state.users.length) + 1;
   const picksTaken = pickedPlayerIds();
@@ -1021,7 +1088,7 @@ function renderDraftBoard() {
 
 // ---------- SCOREBOARD ----------
 function renderScoreboard() {
-  const t = TOURNAMENTS.find(x=>x.id===state.tournamentId);
+  const t = tournamentFor(state.tournamentId);
   const wrap = el('section');
   wrap.appendChild(el('div',{class:'flex items-baseline justify-between flex-wrap gap-2 mb-5'},
     el('div',{},

@@ -121,20 +121,24 @@ const CATEGORIES = [
   { id:'firsttimers',  label:'First Timers',    help:'Players making their debut at this Major.' }
 ];
 
-// --- Default seed field (editable in-app; used as fallback when API / user list unavailable).
-// Each player: { id, name, country, owgr, majorsWon, firstTimerAt: [tournamentIds] }
-// This is a plausible 2025-era snapshot — user can edit or load from ESPN roster at draft time.
+// --- Default seed field. Each player: { id, name, country, owgr, majorsWon, firstTimerAt: [tournamentIds], amateur? }
+// Before each Major, update this list in the app (Setup → Field / Roster) or add entries below.
+// The `firstTimerAt` flags should only be set for the Major a player is actually debuting at — these change every year.
+// Source for 2026 Masters first-timers: Golf Monthly + The Fried Egg (Apr 2026, 22 debutants including 6 amateurs).
 const SEED_FIELD = [
+  // Top 10 / contenders (edit ranks the week of each Major)
   { id:'p_scheffler',   name:'Scottie Scheffler',  country:'USA', owgr:1,  majorsWon:['masters'],         firstTimerAt:[] },
   { id:'p_schauffele',  name:'Xander Schauffele',  country:'USA', owgr:2,  majorsWon:['pga','theopen'],   firstTimerAt:[] },
   { id:'p_mcilroy',     name:'Rory McIlroy',       country:'NIR', owgr:3,  majorsWon:['pga','usopen','theopen','masters'], firstTimerAt:[] },
   { id:'p_morikawa',    name:'Collin Morikawa',    country:'USA', owgr:4,  majorsWon:['pga','theopen'],   firstTimerAt:[] },
   { id:'p_homa',        name:'Max Homa',           country:'USA', owgr:5,  majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_aberg',       name:'Ludvig Åberg',       country:'SWE', owgr:6,  majorsWon:[],                  firstTimerAt:['usopen'] },
+  { id:'p_aberg',       name:'Ludvig Åberg',       country:'SWE', owgr:6,  majorsWon:[],                  firstTimerAt:[] },
   { id:'p_hovland',     name:'Viktor Hovland',     country:'NOR', owgr:7,  majorsWon:[],                  firstTimerAt:[] },
   { id:'p_lowry',       name:'Shane Lowry',        country:'IRL', owgr:8,  majorsWon:['theopen'],         firstTimerAt:[] },
   { id:'p_matsuyama',   name:'Hideki Matsuyama',   country:'JPN', owgr:9,  majorsWon:['masters'],         firstTimerAt:[] },
   { id:'p_rahm',        name:'Jon Rahm',           country:'ESP', owgr:10, majorsWon:['usopen','masters'],firstTimerAt:[] },
+
+  // Ranked pros (11+)
   { id:'p_cantlay',     name:'Patrick Cantlay',    country:'USA', owgr:11, majorsWon:[],                  firstTimerAt:[] },
   { id:'p_fleetwood',   name:'Tommy Fleetwood',    country:'ENG', owgr:12, majorsWon:[],                  firstTimerAt:[] },
   { id:'p_straka',      name:'Sepp Straka',        country:'AUT', owgr:13, majorsWon:[],                  firstTimerAt:[] },
@@ -143,28 +147,50 @@ const SEED_FIELD = [
   { id:'p_conners',     name:'Corey Conners',      country:'CAN', owgr:16, majorsWon:[],                  firstTimerAt:[] },
   { id:'p_day',         name:'Jason Day',          country:'AUS', owgr:17, majorsWon:['pga'],             firstTimerAt:[] },
   { id:'p_harman',      name:'Brian Harman',       country:'USA', owgr:18, majorsWon:['theopen'],         firstTimerAt:[] },
-  { id:'p_mcnealy',     name:'Maverick McNealy',   country:'USA', owgr:19, majorsWon:[],                  firstTimerAt:['masters','pga','usopen','theopen'] },
+  { id:'p_mcnealy',     name:'Maverick McNealy',   country:'USA', owgr:19, majorsWon:[],                  firstTimerAt:[] },
   { id:'p_detry',       name:'Thomas Detry',       country:'BEL', owgr:20, majorsWon:[],                  firstTimerAt:[] },
   { id:'p_hatton',      name:'Tyrrell Hatton',     country:'ENG', owgr:21, majorsWon:[],                  firstTimerAt:[] },
   { id:'p_young',       name:'Cameron Young',      country:'USA', owgr:22, majorsWon:[],                  firstTimerAt:[] },
   { id:'p_pendrith',    name:'Taylor Pendrith',    country:'CAN', owgr:23, majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_bhatia',      name:'Akshay Bhatia',      country:'USA', owgr:24, majorsWon:[],                  firstTimerAt:['masters'] },
+  { id:'p_bhatia',      name:'Akshay Bhatia',      country:'USA', owgr:24, majorsWon:[],                  firstTimerAt:[] },
   { id:'p_clark',       name:'Wyndham Clark',      country:'USA', owgr:25, majorsWon:['usopen'],          firstTimerAt:[] },
   { id:'p_theegala',    name:'Sahith Theegala',    country:'USA', owgr:26, majorsWon:[],                  firstTimerAt:[] },
   { id:'p_thomas',      name:'Justin Thomas',      country:'USA', owgr:27, majorsWon:['pga'],             firstTimerAt:[] },
   { id:'p_spieth',      name:'Jordan Spieth',      country:'USA', owgr:28, majorsWon:['masters','usopen','theopen'], firstTimerAt:[] },
-  { id:'p_sheffield',   name:'Davis Thompson',     country:'USA', owgr:29, majorsWon:[],                  firstTimerAt:['masters','usopen','theopen'] },
-  { id:'p_novak',       name:'Andrew Novak',       country:'USA', owgr:30, majorsWon:[],                  firstTimerAt:['masters','pga','usopen','theopen'] },
+  { id:'p_davisthompson',name:'Davis Thompson',    country:'USA', owgr:29, majorsWon:[],                  firstTimerAt:[] },
   { id:'p_kitayama',    name:'Kurt Kitayama',      country:'USA', owgr:31, majorsWon:[],                  firstTimerAt:[] },
   { id:'p_im',          name:'Sungjae Im',         country:'KOR', owgr:32, majorsWon:[],                  firstTimerAt:[] },
   { id:'p_smith',       name:'Cameron Smith',      country:'AUS', owgr:33, majorsWon:['theopen'],         firstTimerAt:[] },
   { id:'p_koepka',      name:'Brooks Koepka',      country:'USA', owgr:34, majorsWon:['pga','usopen'],    firstTimerAt:[] },
   { id:'p_dechambeau',  name:'Bryson DeChambeau',  country:'USA', owgr:35, majorsWon:['usopen'],          firstTimerAt:[] },
-  { id:'p_griffin',     name:'Ben Griffin',        country:'USA', owgr:36, majorsWon:[],                  firstTimerAt:['masters','pga','usopen','theopen'] },
-  { id:'p_highsmith',   name:'Joe Highsmith',      country:'USA', owgr:37, majorsWon:[],                  firstTimerAt:['masters','pga','usopen','theopen'] },
   { id:'p_rai',         name:'Aaron Rai',          country:'ENG', owgr:38, majorsWon:[],                  firstTimerAt:[] },
   { id:'p_burns',       name:'Sam Burns',          country:'USA', owgr:39, majorsWon:[],                  firstTimerAt:[] },
-  { id:'p_bezuidenhout',name:'Christiaan Bezuidenhout', country:'RSA', owgr:40, majorsWon:[],             firstTimerAt:[] }
+  { id:'p_bezuidenhout',name:'Christiaan Bezuidenhout', country:'RSA', owgr:40, majorsWon:[],             firstTimerAt:[] },
+
+  // ===== 2026 Masters first-timers (22 total: 17 pros + 5 amateurs + 1 int'l am) =====
+  // Source: Golf Monthly / The Fried Egg coverage, April 2026.
+  { id:'p_brennan',     name:'Michael Brennan',           country:'USA', owgr:95,  majorsWon:[], firstTimerAt:['masters'] },
+  { id:'p_bridgeman',   name:'Jacob Bridgeman',           country:'USA', owgr:50,  majorsWon:[], firstTimerAt:['masters'] },
+  { id:'p_gerard',      name:'Ryan Gerard',               country:'USA', owgr:80,  majorsWon:[], firstTimerAt:['masters'] },
+  { id:'p_gotterup',    name:'Chris Gotterup',            country:'USA', owgr:30,  majorsWon:[], firstTimerAt:['masters'] },
+  { id:'p_griffin',     name:'Ben Griffin',               country:'USA', owgr:36,  majorsWon:[], firstTimerAt:['masters'] },
+  { id:'p_hall',        name:'Harry Hall',                country:'ENG', owgr:60,  majorsWon:[], firstTimerAt:['masters'] },
+  { id:'p_jarvis',      name:'Casey Jarvis',              country:'RSA', owgr:120, majorsWon:[], firstTimerAt:['masters'] },
+  { id:'p_kataoka',     name:'Naoyuki Kataoka',           country:'JPN', owgr:150, majorsWon:[], firstTimerAt:['masters'] },
+  { id:'p_keefer',      name:'John Keefer',               country:'USA', owgr:130, majorsWon:[], firstTimerAt:['masters'] },
+  { id:'p_mckibbin',    name:'Tom McKibbin',              country:'NIR', owgr:75,  majorsWon:[], firstTimerAt:['masters'] },
+  { id:'p_neergaard',   name:'Rasmus Neergaard-Petersen', country:'DEN', owgr:85,  majorsWon:[], firstTimerAt:['masters'] },
+  { id:'p_novak',       name:'Andrew Novak',              country:'USA', owgr:45,  majorsWon:[], firstTimerAt:['masters'] },
+  { id:'p_penge',       name:'Marco Penge',               country:'ENG', owgr:55,  majorsWon:[], firstTimerAt:['masters'] },
+  { id:'p_reitan',      name:'Kristoffer Reitan',         country:'NOR', owgr:110, majorsWon:[], firstTimerAt:['masters'] },
+  { id:'p_stevens',     name:'Sam Stevens',               country:'USA', owgr:65,  majorsWon:[], firstTimerAt:['masters'] },
+  { id:'p_valimaki',    name:'Sami Valimaki',             country:'FIN', owgr:140, majorsWon:[], firstTimerAt:['masters'] },
+  { id:'p_am_howell',   name:'Mason Howell',              country:'USA', owgr:999, majorsWon:[], firstTimerAt:['masters'], amateur:true },
+  { id:'p_am_fang',     name:'Ethan Fang',                country:'USA', owgr:999, majorsWon:[], firstTimerAt:['masters'], amateur:true },
+  { id:'p_am_herrington',name:'Jackson Herrington',       country:'USA', owgr:999, majorsWon:[], firstTimerAt:['masters'], amateur:true },
+  { id:'p_am_holtz',    name:'Brandon Holtz',             country:'USA', owgr:999, majorsWon:[], firstTimerAt:['masters'], amateur:true },
+  { id:'p_am_laopakdee',name:'Fifa Laopakdee',            country:'THA', owgr:999, majorsWon:[], firstTimerAt:['masters'], amateur:true },
+  { id:'p_am_pulcini',  name:'Mateo Pulcini',             country:'ARG', owgr:999, majorsWon:[], firstTimerAt:['masters'], amateur:true }
 ];
 
 // ---------- STATE ----------
@@ -224,6 +250,33 @@ function resetAll() {
   history.replaceState(null, '', window.location.pathname);
   render();
   toast('Game reset.');
+}
+
+// ---------- COUNTRY FLAGS ----------
+// 3-letter golf/IOC code -> ISO-2 (for regional-indicator flag emoji).
+// ENG/SCO/WAL use subdivision tag sequences; NIR falls back to GB.
+const CC3_TO_CC2 = {
+  USA:'US', CAN:'CA', MEX:'MX', ARG:'AR', COL:'CO', VEN:'VE', CHI:'CL', BRA:'BR', URU:'UY', PAR:'PY',
+  IRL:'IE', FRA:'FR', ITA:'IT', ESP:'ES', GER:'DE', NED:'NL', BEL:'BE', AUT:'AT', SUI:'CH', POR:'PT',
+  SWE:'SE', NOR:'NO', DEN:'DK', FIN:'FI', POL:'PL', CZE:'CZ', HUN:'HU', TUR:'TR', GRE:'GR', RUS:'RU',
+  RSA:'ZA', ZIM:'ZW', MAR:'MA', NGR:'NG', EGY:'EG',
+  JPN:'JP', KOR:'KR', CHN:'CN', TPE:'TW', THA:'TH', IND:'IN', PHI:'PH', MAS:'MY', SGP:'SG', HKG:'HK', VIE:'VN', INA:'ID',
+  AUS:'AU', NZL:'NZ', FIJ:'FJ', PUR:'PR'
+};
+// Subdivision flags supported on macOS/iOS/Chrome; Windows may fall back to plain black flag.
+const SUBDIV_FLAGS = {
+  ENG: '\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}',
+  SCO: '\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}',
+  WAL: '\u{1F3F4}\u{E0067}\u{E0062}\u{E0077}\u{E006C}\u{E0073}\u{E007F}'
+};
+function flagOf(cc3) {
+  if (!cc3) return '';
+  const up = String(cc3).toUpperCase();
+  if (SUBDIV_FLAGS[up]) return SUBDIV_FLAGS[up];
+  if (up === 'NIR') return '\u{1F3F4}\u{E0067}\u{E0062}\u{E006E}\u{E0069}\u{E0072}\u{E007F}'; // try N. Ireland tag (limited support)
+  const cc2 = CC3_TO_CC2[up];
+  if (!cc2) return '';
+  return String.fromCodePoint(...[...cc2].map(c => 0x1F1E6 + (c.charCodeAt(0) - 65)));
 }
 
 // ---------- UTIL ----------
@@ -844,9 +897,15 @@ function renderDraft() {
         .filter(p => !picksTaken.has(p.id))
         .sort((a,b) => a.owgr - b.owgr);
 
+      const playerLabel = (p) => {
+        const rank = (p.owgr && p.owgr < 500) ? `#${p.owgr}` : 'NR';
+        const am = p.amateur ? ' (Am)' : '';
+        const flag = flagOf(p.country);
+        return `${rank} ${p.name}${am} ${flag ? flag + ' ' : ''}(${p.country})`;
+      };
       const sel = el('select',{disabled: full || eligible.length===0, id:'sel_'+c.id},
         el('option',{value:''}, full ? 'Slots filled' : (eligible.length===0 ? 'No eligible players' : 'Select a player…')),
-        ...eligible.map(p => el('option',{value:p.id}, `#${p.owgr} ${p.name} (${p.country})`))
+        ...eligible.map(p => el('option',{value:p.id}, playerLabel(p)))
       );
 
       const btn = el('button',{
@@ -901,11 +960,12 @@ function renderDraftBoard() {
         const pick = filled[i];
         const player = pick ? state.field.find(f => f.id === pick.playerId) : null;
         const label = quota > 1 ? `${c.label} ${i+1}` : c.label;
+        const flag = player ? flagOf(player.country) : '';
         rows.push(el('div',{class:'flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0'},
           el('div',{class:'text-sm text-gray-500'}, label),
           el('div',{class:'text-sm font-medium text-gray-800 text-right'},
-            player ? `${player.name} ` : '—',
-            player ? el('span',{class:'text-gray-500 text-xs'}, `#${player.owgr}`) : null
+            player ? `${flag ? flag + ' ' : ''}${player.name}${player.amateur ? ' (Am)' : ''} ` : '—',
+            player ? el('span',{class:'text-gray-500 text-xs'}, (player.owgr && player.owgr < 500) ? `#${player.owgr}` : 'NR') : null
           )
         ));
       }
@@ -1004,8 +1064,10 @@ function renderScoreboard() {
         tbody.appendChild(el('tr',{class:'border-t border-gray-100'},
           el('td',{class:'py-2 pr-2 text-gray-500'}, label),
           el('td',{class:'py-2 pr-2'},
-            el('div',{class:'font-medium'}, ps?.player?.name || '—'),
-            el('div',{class:'text-xs text-gray-500'}, ps?.player ? `#${ps.player.owgr} • ${ps.player.country}` : '')
+            el('div',{class:'font-medium'},
+              (ps?.player ? `${flagOf(ps.player.country) ? flagOf(ps.player.country) + ' ' : ''}${ps.player.name}${ps.player.amateur ? ' (Am)' : ''}` : '—')
+            ),
+            el('div',{class:'text-xs text-gray-500'}, ps?.player ? `${(ps.player.owgr && ps.player.owgr < 500) ? '#'+ps.player.owgr : 'NR'} • ${ps.player.country}` : '')
           ),
           el('td',{class:'py-2 pr-2 text-gray-600'}, s.pos || '—'),
           el('td',{class:`py-2 pr-2 text-right ${scoreClass(s.total)}`}, fmtScore(s.total)),

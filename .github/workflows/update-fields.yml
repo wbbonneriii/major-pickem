@@ -1,0 +1,35 @@
+name: Update major fields
+
+on:
+  schedule:
+    # Daily at 11:00 UTC (07:00 ET) — early enough to catch DataGolf overnight changes
+    - cron: "0 11 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Fetch fields from DataGolf
+        run: python3 scripts/fetch-fields.py
+
+      - name: Commit & push if changed
+        run: |
+          if [[ -n "$(git status --porcelain data/)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add data/
+            git commit -m "data: refresh major fields ($(date -u +%Y-%m-%d))"
+            git push
+          else
+            echo "No changes."
+          fi

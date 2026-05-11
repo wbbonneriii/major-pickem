@@ -1025,6 +1025,40 @@ function startTournament(id) {
   };
   persist();
   render();
+  // Auto-load DataGolf-sourced field for this major/year if available (no-op on failure).
+  loadAutoField({ silent: true });
+}
+
+// Fetch the same-origin DataGolf-sourced field JSON for the current tournament and apply it.
+// Files are produced by .github/workflows/update-fields.yml + scripts/fetch-fields.py.
+async function loadAutoField({ silent = false } = {}) {
+  if (!state.tournamentId) return false;
+  const year = state.year || DEFAULT_YEAR;
+  const url = `data/${year}/${state.tournamentId}.json`;
+  try {
+    const res = await fetch(url, { cache: 'no-cache' });
+    if (!res.ok) { if (!silent) toast(`No auto field for ${year} ${state.tournamentId} yet.`); return false; }
+    const doc = await res.json();
+    const incoming = Array.isArray(doc.field) ? doc.field : null;
+    if (!incoming || !incoming.length) { if (!silent) toast('Auto field file empty.'); return false; }
+    state.field = incoming.map(p => ({
+      id: p.id,
+      name: p.name,
+      country: p.country || '',
+      owgr: p.owgr ?? 999,
+      majorsWon: Array.isArray(p.majorsWon) ? p.majorsWon : [],
+      firstTimerAt: Array.isArray(p.firstTimerAt) ? p.firstTimerAt : [],
+      amateur: !!p.amateur
+    }));
+    persist(); render();
+    const ft = state.field.filter(p => (p.firstTimerAt||[]).includes(state.tournamentId)).length;
+    if (!silent) toast(`Loaded ${state.field.length} players from DataGolf (${ft} first-timers).`);
+    return true;
+  } catch (e) {
+    if (!silent) toast('Auto field load failed. See console.');
+    console.warn('loadAutoField failed:', e);
+    return false;
+  }
 }
 
 // ---------- SETUP (roster + users + start draft) ----------
@@ -1181,6 +1215,7 @@ function renderRosterEditor() {
       persist(); render();
     }},'+ Add Player'),
     el('button',{class:'btn btn-ghost',onclick:()=>{ state.field = [...SEED_FIELD]; persist(); render(); toast('Reset to seed field.'); }},'Reset to Seed Field'),
+    el('button',{class:'btn btn-primary',onclick:()=>loadAutoField()},'Refresh from DataGolf'),
     el('button',{class:'btn btn-ghost',onclick:()=>pullFieldFromEspn()},'Pull Field from ESPN'),
     el('button',{class:'btn btn-ghost',onclick:()=>openPasteFieldModal()},'Paste Field')
   ));

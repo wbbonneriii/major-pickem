@@ -372,7 +372,8 @@ const DEFAULT_STATE = () => ({
   picks: [],                  // [{userId, category, playerId, round, overall, isAlternate?}]
   field: SEED_FIELD,          // editable roster
   scores: {},                 // playerId -> { total, today, thru, madeCut, rounds:[...], pos }
-  lastSync: null
+  lastSync: null,
+  eventState: null            // 'pre' | 'in' | 'post' — last-synced ESPN event state; gates winner banner
 });
 
 let state = loadState();
@@ -846,6 +847,7 @@ function applyEspnData(data) {
   const competitors = comp?.competitors || [];
   const evState = (comp?.status?.type?.state || event?.status?.type?.state || '').toLowerCase();
   const isFinal = evState === 'post' || /final|complete/i.test(comp?.status?.type?.name || '');
+  state.eventState = isFinal ? 'post' : (evState || 'in');
 
   const byName = new Map();
   state.field.forEach(p => byName.set(normalizeName(p.name), p));
@@ -871,9 +873,14 @@ function applyEspnData(data) {
 
     const posTxt = (c.status?.position?.displayName ?? c.status?.position?.id ?? '').toString();
     const scoreRaw = typeof c.score === 'object' && c.score !== null ? c.score.displayValue : c.score;
-    const toPar = parseScore(scoreRaw);
 
     const stateName = (c.status?.type?.name || '').toUpperCase();
+    const compState = (c.status?.type?.state || '').toLowerCase();
+    // ESPN reports score=0 / displayValue="E" for players who haven't teed off yet, which
+    // misleadingly renders as "even par." Suppress until they're actually in or done.
+    const notStarted = compState === 'pre' || /SCHEDULED/.test(stateName);
+    const toPar = notStarted ? null : parseScore(scoreRaw);
+
     const madeCut =
       /CUT|WD|DQ|WITHDRAW/.test(stateName) ? false :
       (c.status?.period || 0) >= 3 ? true :
@@ -1626,9 +1633,12 @@ function renderScoreboard() {
   const rows = orderedStandings();
   const lead = rows[0];
   const hasScoring = !!state.lastSync;
+  const eventFinal = state.eventState === 'post';
+  // A "win" is only declared when the event is final, OR a team already owns the champion
+  // (which can only be true post-final per applyEspnData). Otherwise: tournament is live.
+  const declareWinner = hasScoring && lead && (eventFinal || lead.ownsWinner);
 
-  // Winner banner (shown when we have synced scores — headline reflects active rule in play)
-  if (hasScoring && lead) {
+  if (declareWinner) {
     const reason =
       lead.ownsWinner ? 'Picked the tournament champion' :
       (rows.length > 1 && lead.cuts > rows[1].cuts) ? `Most cuts made (${lead.cuts})` :
@@ -1637,20 +1647,34 @@ function renderScoreboard() {
       class:'rounded-xl p-4 mb-5 text-center text-white font-serif text-2xl',
       style:'background:linear-gradient(135deg,#0b4d2c 0%,#1a7a46 100%);box-shadow:0 4px 14px rgba(11,77,44,.25)'
     }, `🏆 ${lead.user.name} wins — ${reason}`));
+  } else if (hasScoring && lead) {
+    const detail =
+      (rows.length > 1 && lead.cuts > rows[1].cuts) ? `Most cuts made (${lead.cuts})` :
+      `Lowest cumulative score (${fmtScore(lead.total)})`;
+    wrap.appendChild(el('div',{
+      class:'rounded-xl p-4 mb-5 text-center text-white font-serif text-xl',
+      style:'background:linear-gradient(135deg,#1e3a5f 0%,#2d5a87 100%);box-shadow:0 4px 14px rgba(30,58,95,.25)'
+    }, `📊 ${lead.user.name} currently leading — ${detail}`));
   }
 
   // Team cards
   const grid = el('div',{class:'grid grid-cols-1 md:grid-cols-2 gap-5'});
   rows.forEach((row,idx) => {
-    const isWinner = idx === 0 && hasScoring;
-    const team = el('div',{class:'card p-4 ' + (isWinner ? 'winner-glow' : ''), style: isWinner ? 'border:2px solid #1a7a46' : ''});
+    const isWinner = idx === 0 && declareWinner;
+    const isLeading = idx === 0 && hasScoring && !declareWinner;
+    const team = el('div',{
+      class:'card p-4 ' + (isWinner ? 'winner-glow' : ''),
+      style: isWinner ? 'border:2px solid #1a7a46' : (isLeading ? 'border:2px solid #2d5a87' : '')
+    });
 
-    // Header with trophy badge for winner
+    // Header — trophy badge when event is final; "Leading" badge while live
     const header = el('div',{class:'flex items-center justify-between mb-3'},
       el('div',{},
         isWinner
           ? el('div',{class:'inline-flex items-center gap-1 text-xs uppercase tracking-wider font-bold rounded-full px-2 py-0.5 mb-1', style:'background:#0b4d2c;color:#fff'}, '🏆 Winner')
-          : el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, `Team • Rank #${idx+1}`),
+          : isLeading
+            ? el('div',{class:'inline-flex items-center gap-1 text-xs uppercase tracking-wider font-bold rounded-full px-2 py-0.5 mb-1', style:'background:#2d5a87;color:#fff'}, '📊 Leading')
+            : el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, `Team • Rank #${idx+1}`),
         el('div',{class:'font-serif text-2xl text-masters-800'}, row.user.name)
       ),
       el('div',{class:'text-right'},
@@ -1794,7 +1818,8 @@ function buildShareUrl() {
     picks: state.picks,
     field: slimField,
     scores: slimScores,
-    lastSync: state.lastSync
+    lastSync: state.lastSync,
+    eventState: state.eventState
   };
   const encoded = encodePayload(slim);
   const base = window.location.href.split('#')[0];

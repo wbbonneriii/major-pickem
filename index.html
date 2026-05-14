@@ -730,8 +730,12 @@ function winnerPlayerId() {
 }
 
 function computeStandings() {
+  // Picks store player IDs. If state.field has been replaced (e.g. by a stale "Pull Field
+  // from ESPN" run) some IDs may no longer resolve, leaving names blank. Fall back to
+  // SEED_FIELD so the displayed roster survives a corrupted field.
   const attach = (p) => {
-    const pl = state.field.find(f => f.id === p.playerId);
+    let pl = state.field.find(f => f.id === p.playerId);
+    if (!pl) pl = SEED_FIELD.find(f => f.id === p.playerId);
     const s = state.scores[p.playerId] || {};
     return { pick: p, player: pl, score: s };
   };
@@ -872,22 +876,45 @@ function applyEspnData(data) {
     if (!p) return;
 
     const posTxt = (c.status?.position?.displayName ?? c.status?.position?.id ?? '').toString();
-    const scoreRaw = typeof c.score === 'object' && c.score !== null ? c.score.displayValue : c.score;
 
     const stateName = (c.status?.type?.name || '').toUpperCase();
     const compState = (c.status?.type?.state || '').toLowerCase();
-    // ESPN reports score=0 / displayValue="E" for players who haven't teed off yet, which
-    // misleadingly renders as "even par." Suppress until they're actually in or done.
     const notStarted = compState === 'pre' || /SCHEDULED/.test(stateName);
-    const toPar = notStarted ? null : parseScore(scoreRaw);
+
+    // ESPN's `c.score.displayValue` is unreliable — it reports "E" for live players who are
+    // actually -2 / -3 etc. The canonical to-par lives in `statistics[scoreToPar]`. Fall back
+    // to `status.detail` ("-2(8)") and finally `c.score` for older response shapes.
+    const stat = (c.statistics || []).find(s => s && s.name === 'scoreToPar');
+    let toPar = null;
+    if (!notStarted) {
+      if (stat && stat.value != null) {
+        toPar = Number(stat.value);
+        if (!Number.isFinite(toPar)) toPar = parseScore(stat.displayValue);
+      }
+      if (toPar == null) {
+        const detail = c.status?.detail || c.status?.todayDetail || '';
+        const m = String(detail).match(/^(-?\d+|E|\+\d+)/i);
+        if (m) toPar = parseScore(m[1]);
+      }
+      if (toPar == null) {
+        const scoreRaw = typeof c.score === 'object' && c.score !== null ? c.score.displayValue : c.score;
+        toPar = parseScore(scoreRaw);
+      }
+    }
 
     const madeCut =
       /CUT|WD|DQ|WITHDRAW/.test(stateName) ? false :
       (c.status?.period || 0) >= 3 ? true :
       null;
 
-    const lastLs = (c.linescores||[])[ (c.linescores||[]).length - 1 ];
-    const todayRaw = lastLs && (typeof lastLs === 'object' ? (lastLs.displayValue ?? lastLs.value) : lastLs);
+    // Current-round to-par: prefer the linescore for the active period (its displayValue is
+    // round-only). Fall back to the last linescore entry that has a usable value.
+    const linescores = c.linescores || [];
+    const periodIdx = Math.max(0, (c.status?.period || 1) - 1);
+    const activeLs = linescores[periodIdx] || linescores[linescores.length - 1];
+    const todayRaw = activeLs && (typeof activeLs === 'object'
+      ? (activeLs.displayValue ?? activeLs.value)
+      : activeLs);
 
     state.scores[p.id] = {
       total: toPar,
@@ -1637,6 +1664,12 @@ function renderScoreboard() {
   // A "win" is only declared when the event is final, OR a team already owns the champion
   // (which can only be true post-final per applyEspnData). Otherwise: tournament is live.
   const declareWinner = hasScoring && lead && (eventFinal || lead.ownsWinner);
+  // True tie at the top: identical cuts + total and nobody owns the champion. Stable-sort
+  // would otherwise arbitrarily crown whoever's first in state.users.
+  const tiedAtTop = !declareWinner && hasScoring && rows.length > 1
+    && !lead.ownsWinner
+    && lead.cuts === rows[1].cuts
+    && lead.total === rows[1].total;
 
   if (declareWinner) {
     const reason =
@@ -1647,6 +1680,11 @@ function renderScoreboard() {
       class:'rounded-xl p-4 mb-5 text-center text-white font-serif text-2xl',
       style:'background:linear-gradient(135deg,#0b4d2c 0%,#1a7a46 100%);box-shadow:0 4px 14px rgba(11,77,44,.25)'
     }, `🏆 ${lead.user.name} wins — ${reason}`));
+  } else if (tiedAtTop) {
+    wrap.appendChild(el('div',{
+      class:'rounded-xl p-4 mb-5 text-center text-white font-serif text-xl',
+      style:'background:linear-gradient(135deg,#5a4a1e 0%,#8a7330 100%);box-shadow:0 4px 14px rgba(90,74,30,.25)'
+    }, `🤝 Tied at ${fmtScore(lead.total)} — ${lead.cuts}/${lead.picks.length} made cut`));
   } else if (hasScoring && lead) {
     const detail =
       (rows.length > 1 && lead.cuts > rows[1].cuts) ? `Most cuts made (${lead.cuts})` :
@@ -1661,7 +1699,7 @@ function renderScoreboard() {
   const grid = el('div',{class:'grid grid-cols-1 md:grid-cols-2 gap-5'});
   rows.forEach((row,idx) => {
     const isWinner = idx === 0 && declareWinner;
-    const isLeading = idx === 0 && hasScoring && !declareWinner;
+    const isLeading = idx === 0 && hasScoring && !declareWinner && !tiedAtTop;
     const team = el('div',{
       class:'card p-4 ' + (isWinner ? 'winner-glow' : ''),
       style: isWinner ? 'border:2px solid #1a7a46' : (isLeading ? 'border:2px solid #2d5a87' : '')

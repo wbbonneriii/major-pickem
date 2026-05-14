@@ -378,6 +378,79 @@ const DEFAULT_STATE = () => ({
 
 let state = loadState();
 
+// Repair picks whose playerId is no longer in s.field — happens when the field gets
+// replaced (seed-version bump, "Pull Field from ESPN", or "Reset to Seed Field") without
+// the picks being remapped. Strategies in order:
+//   1. Use the game's saved s.field to recover the original name, then match against
+//      SEED_FIELD by normalized name.
+//   2. Heuristic: strip a known prefix (p_, espn_, espn_<digits>_, paste_) and treat the
+//      remainder as a normalized name (full match or unambiguous last-token match).
+// Mutates s.picks and rekeys s.scores. Returns the count of picks remapped.
+function repairPickIds(s) {
+  if (!s || !Array.isArray(s.picks) || !s.picks.length) return 0;
+  const seedById   = new Map(SEED_FIELD.map(p => [p.id, p]));
+  const seedByName = new Map(SEED_FIELD.map(p => [normalizeName(p.name), p]));
+  const oldById    = new Map((s.field || []).map(p => [p.id, p]));
+
+  const remap = {};
+  for (const pick of s.picks) {
+    const pid = pick.playerId;
+    if (!pid || seedById.has(pid)) continue;
+    let target = null;
+    const old = oldById.get(pid);
+    if (old && old.name) target = seedByName.get(normalizeName(old.name)) || null;
+    if (!target) {
+      const stem = String(pid).replace(/^(p_|espn_\d+_|espn_|paste_)/, '').replace(/_/g, ' ');
+      if (stem) {
+        target = seedByName.get(normalizeName(stem)) || null;
+        if (!target) {
+          // Token-containment match: every token in the stem must appear (as a name part
+          // prefix) in the SEED player's normalized name, and the match must be unique.
+          // Catches "p_xander" → "xander schauffele", "p_schauffele" hit already done above.
+          const tokens = normalizeName(stem).split(' ').filter(t => t.length >= 3);
+          if (tokens.length) {
+            const cands = SEED_FIELD.filter(p => {
+              const parts = normalizeName(p.name).split(' ');
+              return tokens.every(t => parts.some(part => part === t || part.startsWith(t) || t.startsWith(part)));
+            });
+            if (cands.length === 1) target = cands[0];
+          }
+        }
+      }
+    }
+    if (target && target.id !== pid) {
+      remap[pid] = target.id;
+      pick.playerId = target.id;
+    }
+  }
+
+  if (Object.keys(remap).length && s.scores) {
+    for (const [oldId, newId] of Object.entries(remap)) {
+      if (s.scores[oldId] && !s.scores[newId]) {
+        s.scores[newId] = s.scores[oldId];
+        delete s.scores[oldId];
+      }
+    }
+  }
+  return Object.keys(remap).length;
+}
+
+// One-shot pass over every saved game in the multi-game store. Runs at app boot so games
+// the user hasn't opened recently still get fixed in place rather than only on load.
+function repairAllSavedGames() {
+  let games;
+  try { games = JSON.parse(localStorage.getItem(GAMES_KEY) || '{}'); }
+  catch (_) { return; }
+  let touched = 0;
+  for (const id of Object.keys(games)) {
+    if (!games[id]) continue;
+    touched += repairPickIds(games[id]);
+  }
+  if (touched) {
+    try { localStorage.setItem(GAMES_KEY, JSON.stringify(games)); } catch (_) {}
+  }
+}
+
 function loadState() {
   // 1) URL share payload takes precedence on first load.
   // NOTE: can't call persist() here — the global `state` binding is in the TDZ
@@ -404,7 +477,9 @@ function loadState() {
       if (!parsed.picksByCategory) parsed.picksByCategory = { ...DEFAULT_PICKS_BY_CATEGORY };
       if (parsed.alternatesPerUser == null) parsed.alternatesPerUser = DEFAULT_ALTERNATES_PER_USER;
       delete parsed.picksPerUser;
-      // Auto-refresh roster when SEED_FIELD changes between releases (preserves picks/users/scores).
+      // Remap stale pick IDs while parsed.field still references the prior roster — must
+      // happen BEFORE the seedVersion swap discards that information.
+      repairPickIds(parsed);
       if (parsed.seedVersion !== SEED_VERSION) {
         parsed.field = SEED_FIELD;
         parsed.seedVersion = SEED_VERSION;
@@ -452,12 +527,15 @@ function loadGame(id) {
   const g = games[id];
   if (!g) return false;
   state = { ...DEFAULT_STATE(), ...g };
+  // Repair stale pick IDs using the game's saved field BEFORE the seedVersion swap.
+  const repaired = repairPickIds(state);
   if (state.seedVersion !== SEED_VERSION) {
     state.field = SEED_FIELD;
     state.seedVersion = SEED_VERSION;
   }
   ensureDraftOrderCovers(state);
   persist();
+  if (repaired) setTimeout(() => toast(`Recovered ${repaired} pick${repaired === 1 ? '' : 's'} from stale roster IDs.`), 50);
   return true;
 }
 function gamesForTournament(tournamentId, year) {
@@ -1915,6 +1993,11 @@ window.addEventListener('hashchange', () => {
     if (p) { hydrateSharedPayload(p); persist(p); history.replaceState(null,'',window.location.pathname); render(); toast('Loaded shared game.'); }
   }
 });
+
+// One-pass repair of every saved game's stale pick IDs. Idempotent and cheap; runs at
+// boot so games the user hasn't opened recently are fixed in place rather than only
+// when next loaded.
+repairAllSavedGames();
 
 render();
 </script>

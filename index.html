@@ -435,6 +435,41 @@ function repairPickIds(s) {
   return Object.keys(remap).length;
 }
 
+// Rewrite state.field entry IDs to match SEED_FIELD whenever names match. Without this,
+// a game's field can carry one ID scheme (e.g. dg_18417 from pga.json) while picks were
+// drafted against another (e.g. p_scheffler from SEED_FIELD) — repairPickIds skips picks
+// that already point at a seed ID, so the mismatch persists and the ESPN sync writes the
+// score under the field's ID while the pick lookup misses. Aligning the field to seed IDs
+// makes picks and field agree on the same key. Players not in SEED_FIELD keep their IDs.
+function alignFieldToSeedIds(s) {
+  if (!s || !Array.isArray(s.field) || !s.field.length) return 0;
+  const seedByName = new Map(SEED_FIELD.map(p => [normalizeName(p.name), p]));
+  const remap = {};   // oldId -> newId, for re-keying scores
+  let touched = 0;
+  s.field = s.field.map(p => {
+    const seed = seedByName.get(normalizeName(p.name));
+    if (seed && seed.id !== p.id) {
+      remap[p.id] = seed.id;
+      touched++;
+      return { ...p, id: seed.id };
+    }
+    return p;
+  });
+  // Carry forward score entries that were keyed under the pre-alignment ID. Without this,
+  // the scoreboard would briefly render "—" between alignment and the next ESPN sync.
+  if (touched && s.scores) {
+    for (const [oldId, newId] of Object.entries(remap)) {
+      if (s.scores[oldId] && !s.scores[newId]) {
+        s.scores[newId] = s.scores[oldId];
+        delete s.scores[oldId];
+      } else if (s.scores[oldId] && s.scores[newId]) {
+        delete s.scores[oldId];
+      }
+    }
+  }
+  return touched;
+}
+
 // Collapse duplicate state.field entries that share a normalized name but use different IDs
 // (happens when a shared payload's field is merged with SEED_FIELD by ID, leaving e.g.
 // dg_18417 and p_scheffler both present for Scottie Scheffler). The ESPN sync's byName
@@ -466,7 +501,11 @@ function repairAllSavedGames() {
   let touched = 0;
   for (const id of Object.keys(games)) {
     if (!games[id]) continue;
+    // Order matters: repairPickIds uses the original (pre-alignment) field IDs to
+    // remap stale pick references; alignFieldToSeedIds then rewrites field IDs to
+    // seed; dedupeFieldByName collapses any remaining duplicates.
     touched += repairPickIds(games[id]);
+    touched += alignFieldToSeedIds(games[id]);
     touched += dedupeFieldByName(games[id]);
   }
   if (touched) {
@@ -503,6 +542,8 @@ function loadState() {
       // Remap stale pick IDs while parsed.field still references the prior roster — must
       // happen BEFORE the seedVersion swap discards that information.
       repairPickIds(parsed);
+      alignFieldToSeedIds(parsed);
+      dedupeFieldByName(parsed);
       if (parsed.seedVersion !== SEED_VERSION) {
         parsed.field = SEED_FIELD;
         parsed.seedVersion = SEED_VERSION;
@@ -552,6 +593,7 @@ function loadGame(id) {
   state = { ...DEFAULT_STATE(), ...g };
   // Repair stale pick IDs using the game's saved field BEFORE the seedVersion swap.
   const repaired = repairPickIds(state);
+  alignFieldToSeedIds(state);
   dedupeFieldByName(state);
   if (state.seedVersion !== SEED_VERSION) {
     state.field = SEED_FIELD;

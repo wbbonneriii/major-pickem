@@ -435,6 +435,28 @@ function repairPickIds(s) {
   return Object.keys(remap).length;
 }
 
+// Collapse duplicate state.field entries that share a normalized name but use different IDs
+// (happens when a shared payload's field is merged with SEED_FIELD by ID, leaving e.g.
+// dg_18417 and p_scheffler both present for Scottie Scheffler). The ESPN sync's byName
+// lookup would only write the score to one of those IDs, leaving picks that reference the
+// other ID stuck at "—". Prefer the ID that picks actually reference.
+function dedupeFieldByName(s) {
+  if (!s || !Array.isArray(s.field) || s.field.length < 2) return 0;
+  const pickIds = new Set((s.picks || []).map(pk => pk.playerId).filter(Boolean));
+  const byName = new Map();
+  for (const p of s.field) {
+    const k = normalizeName(p.name);
+    const existing = byName.get(k);
+    if (!existing) { byName.set(k, p); continue; }
+    if (pickIds.has(p.id) && !pickIds.has(existing.id)) byName.set(k, p);
+  }
+  const deduped = Array.from(byName.values());
+  if (deduped.length === s.field.length) return 0;
+  const removed = s.field.length - deduped.length;
+  s.field = deduped;
+  return removed;
+}
+
 // One-shot pass over every saved game in the multi-game store. Runs at app boot so games
 // the user hasn't opened recently still get fixed in place rather than only on load.
 function repairAllSavedGames() {
@@ -445,6 +467,7 @@ function repairAllSavedGames() {
   for (const id of Object.keys(games)) {
     if (!games[id]) continue;
     touched += repairPickIds(games[id]);
+    touched += dedupeFieldByName(games[id]);
   }
   if (touched) {
     try { localStorage.setItem(GAMES_KEY, JSON.stringify(games)); } catch (_) {}
@@ -529,6 +552,7 @@ function loadGame(id) {
   state = { ...DEFAULT_STATE(), ...g };
   // Repair stale pick IDs using the game's saved field BEFORE the seedVersion swap.
   const repaired = repairPickIds(state);
+  dedupeFieldByName(state);
   if (state.seedVersion !== SEED_VERSION) {
     state.field = SEED_FIELD;
     state.seedVersion = SEED_VERSION;
@@ -550,10 +574,24 @@ function nextGameNumber(tournamentId, year) {
 // the local SEED_FIELD in as a fallback and pin seedVersion to prevent a later
 // migration from wiping the shared overrides.
 function hydrateSharedPayload(payload) {
+  // Two-stage dedupe: by ID first (so a shared override of a seed player wins), then by
+  // normalized name. The name pass prevents a shared field using one ID scheme (e.g. dg_*)
+  // from coexisting with SEED_FIELD's p_* entries for the same player — duplicates would
+  // break the ESPN sync's byName lookup (only one ID would receive the score, picks
+  // referencing the other ID would render as "—"). Prefer whichever ID the picks reference.
   const byId = new Map();
   (SEED_FIELD || []).forEach(p => byId.set(p.id, p));
   (payload.field || []).forEach(p => byId.set(p.id, p));
-  payload.field = Array.from(byId.values());
+  const pickIds = new Set((payload.picks || []).map(pk => pk.playerId).filter(Boolean));
+  const byName = new Map();
+  for (const p of byId.values()) {
+    const k = normalizeName(p.name);
+    const existing = byName.get(k);
+    if (!existing) { byName.set(k, p); continue; }
+    // Prefer the entry whose ID is referenced by picks; otherwise keep the one already present.
+    if (pickIds.has(p.id) && !pickIds.has(existing.id)) byName.set(k, p);
+  }
+  payload.field = Array.from(byName.values());
   payload.seedVersion = SEED_VERSION;
   if (!payload.picksByCategory) payload.picksByCategory = { ...DEFAULT_PICKS_BY_CATEGORY };
   if (payload.alternatesPerUser == null) payload.alternatesPerUser = DEFAULT_ALTERNATES_PER_USER;
@@ -931,27 +969,34 @@ function applyEspnData(data) {
   const isFinal = evState === 'post' || /final|complete/i.test(comp?.status?.type?.name || '');
   state.eventState = isFinal ? 'post' : (evState || 'in');
 
+  // A single name can map to multiple field entries when a shared payload (using one ID
+  // scheme, e.g. dg_*) gets merged with SEED_FIELD (using p_*) in hydrateSharedPayload —
+  // the dedupe there is by ID, not name. Write the same score to every matching ID so
+  // picks resolve regardless of which scheme they were drafted under.
   const byName = new Map();
-  state.field.forEach(p => byName.set(normalizeName(p.name), p));
+  state.field.forEach(p => {
+    const k = normalizeName(p.name);
+    const arr = byName.get(k);
+    if (arr) arr.push(p); else byName.set(k, [p]);
+  });
 
   // winner: position '1' (not tied) when event is post/final
-  let winnerId = null;
+  const winnerIds = new Set();
   if (isFinal) {
     const w = competitors.find(c => {
       const pos = c.status?.position;
       return pos && (pos.displayName === '1' || pos.id === '1') && !pos.isTie;
     }) || competitors.find(c => c.winner === true);
     if (w) {
-      const wp = byName.get(normalizeName(w.athlete?.displayName));
-      if (wp) winnerId = wp.id;
+      (byName.get(normalizeName(w.athlete?.displayName)) || []).forEach(wp => winnerIds.add(wp.id));
     }
   }
 
   competitors.forEach(c => {
     const ath = c.athlete || {};
     const key = normalizeName(ath.displayName || ath.fullName);
-    const p = byName.get(key);
-    if (!p) return;
+    const players = byName.get(key);
+    if (!players || !players.length) return;
 
     const posTxt = (c.status?.position?.displayName ?? c.status?.position?.id ?? '').toString();
 
@@ -994,15 +1039,18 @@ function applyEspnData(data) {
       ? (activeLs.displayValue ?? activeLs.value)
       : activeLs);
 
-    state.scores[p.id] = {
+    const scoreEntry = {
       total: toPar,
       today: parseScore(todayRaw),
       thru:  c.status?.displayThru ?? c.status?.thru ?? c.status?.displayValue ?? '',
       rounds: (c.linescores||[]).map(l => (typeof l === 'object' ? l.value : l)),
       pos: posTxt,
       madeCut,
-      isWinner: winnerId === p.id
+      isWinner: false
     };
+    players.forEach(p => {
+      state.scores[p.id] = { ...scoreEntry, isWinner: winnerIds.has(p.id) };
+    });
   });
 }
 

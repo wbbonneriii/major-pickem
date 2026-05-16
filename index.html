@@ -1007,8 +1007,15 @@ function applyEspnData(data) {
   if (!event) return;
   const comp = event.competitions?.[0];
   const competitors = comp?.competitors || [];
-  const evState = (comp?.status?.type?.state || event?.status?.type?.state || '').toLowerCase();
-  const isFinal = evState === 'post' || /final|complete/i.test(comp?.status?.type?.name || '');
+  // Prefer the EVENT-level state. Between rounds, ESPN reports the COMPETITION as
+  // state:"post" / name:"STATUS_PLAY_COMPLETE" (meaning the current round wrapped),
+  // while the event itself is still state:"in" / name:"STATUS_IN_PROGRESS". Reading
+  // comp.state first crowned a winner at the Friday cut.
+  const eventTypeName = event?.status?.type?.name || '';
+  const eventLevelState = (event?.status?.type?.state || '').toLowerCase();
+  const compState = (comp?.status?.type?.state || '').toLowerCase();
+  const evState = eventLevelState || compState;
+  const isFinal = eventLevelState === 'post' && /^STATUS_FINAL$/i.test(eventTypeName);
   state.eventState = isFinal ? 'post' : (evState || 'in');
 
   // A single name can map to multiple field entries when a shared payload (using one ID

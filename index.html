@@ -1065,22 +1065,25 @@ function applyEspnData(data) {
     // ESPN's `c.score.displayValue` is unreliable — it reports "E" for live players who are
     // actually -2 / -3 etc. The canonical to-par lives in `statistics[scoreToPar]`. Fall back
     // to `status.detail` ("-2(8)") and finally `c.score` for older response shapes.
+    //
+    // Between rounds (e.g. Friday-night → Saturday), ESPN flips made-cut players to
+    // state:"pre" / name:"STATUS_SCHEDULED" while they wait to tee off in the next round,
+    // but they still carry a valid `scoreToPar` from the completed rounds. Always trust
+    // that stat when present; only gate the unreliable fallbacks behind `notStarted`.
     const stat = (c.statistics || []).find(s => s && s.name === 'scoreToPar');
     let toPar = null;
-    if (!notStarted) {
-      if (stat && stat.value != null) {
-        toPar = Number(stat.value);
-        if (!Number.isFinite(toPar)) toPar = parseScore(stat.displayValue);
-      }
-      if (toPar == null) {
-        const detail = c.status?.detail || c.status?.todayDetail || '';
-        const m = String(detail).match(/^(-?\d+|E|\+\d+)/i);
-        if (m) toPar = parseScore(m[1]);
-      }
-      if (toPar == null) {
-        const scoreRaw = typeof c.score === 'object' && c.score !== null ? c.score.displayValue : c.score;
-        toPar = parseScore(scoreRaw);
-      }
+    if (stat && stat.value != null) {
+      toPar = Number(stat.value);
+      if (!Number.isFinite(toPar)) toPar = parseScore(stat.displayValue);
+    }
+    if (toPar == null && !notStarted) {
+      const detail = c.status?.detail || c.status?.todayDetail || '';
+      const m = String(detail).match(/^(-?\d+|E|\+\d+)/i);
+      if (m) toPar = parseScore(m[1]);
+    }
+    if (toPar == null && !notStarted) {
+      const scoreRaw = typeof c.score === 'object' && c.score !== null ? c.score.displayValue : c.score;
+      toPar = parseScore(scoreRaw);
     }
 
     const madeCut =

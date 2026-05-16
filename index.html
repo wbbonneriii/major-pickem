@@ -900,7 +900,11 @@ function computeStandings() {
   return state.users.map(u => {
     const starterSc  = starterPicks(u.id).map(attach);
     const alternateSc = alternatePicks(u.id).map(attach);
-    const total = starterSc.reduce((a,ps) => a + (Number(ps.score.total) || 0), 0);
+    // Post-cut, missed-cut players' scores freeze and just bloat the cumulative.
+    // Only count players still alive (madeCut true, or undetermined pre-cut).
+    const total = starterSc
+      .filter(ps => ps.score.madeCut !== false)
+      .reduce((a,ps) => a + (Number(ps.score.total) || 0), 0);
     const cuts  = starterSc.filter(ps => ps.score.madeCut === true).length;
     const ownsWinner = starterSc.some(ps => state.scores[ps.pick.playerId]?.isWinner);
     return { user:u, picks:starterSc, alternates:alternateSc, total, cuts, ownsWinner };
@@ -917,6 +921,11 @@ function orderedStandings() {
     // Rule 3: lowest cumulative score among tied cut counts
     return a.total - b.total;
   });
+  // Teams with fewer cuts than the leader can't win on the cumulative tiebreaker
+  // (Rule 3) — they're only alive via Rule 1 (owning the eventual champion). Flag
+  // them so the UI can render N/A in place of a misleading number.
+  const maxCuts = rows.reduce((m, r) => Math.max(m, r.cuts), 0);
+  rows.forEach(r => { r.eligibleForCumulative = r.cuts === maxCuts; });
   return rows;
 }
 
@@ -1891,7 +1900,9 @@ function renderScoreboard() {
         el('div',{class:'font-serif text-2xl text-masters-800'}, row.user.name)
       ),
       el('div',{class:'text-right'},
-        el('div',{class:`text-2xl ${scoreClass(row.total)}`}, fmtScore(row.total)),
+        row.eligibleForCumulative
+          ? el('div',{class:`text-2xl ${scoreClass(row.total)}`}, fmtScore(row.total))
+          : el('div',{class:'text-2xl text-gray-400', title:'Fewer made-cut players than the leader — eliminated from the cumulative-score tiebreaker. Still alive if one of this team’s picks wins the tournament.'}, 'N/A'),
         el('div',{class:'text-xs text-gray-500'}, `${row.cuts}/${row.picks.length} made cut`)
       )
     );
@@ -1991,7 +2002,7 @@ function renderScoreboard() {
   // Rules reminder
   wrap.appendChild(el('div',{class:'mt-6 card p-4 text-xs text-gray-600'},
     el('div',{class:'font-semibold text-gray-800 mb-1'},'Winner Rules'),
-    '1. User who picked the tournament winner wins. 2. Otherwise, most players making the 36-hole cut. 3. Tie-breaker: lowest cumulative team score.'
+    '1. User who picked the tournament winner wins. 2. Otherwise, most players making the 36-hole cut. 3. Tie-breaker among teams with the same cut count: lowest cumulative score of made-cut players. Teams with fewer made-cut players than the leader show N/A — they can still win via Rule 1 if one of their picks wins the tournament.'
   ));
   return wrap;
 }

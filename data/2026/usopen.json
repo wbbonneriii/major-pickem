@@ -3,10 +3,10 @@
   "tournamentId": "usopen",
   "event_name": "U.S. Open",
   "course": "Shinnecock Hills Golf Club, June 18th–21st",
-  "fetched_at": "2026-05-18T13:29:14Z",
+  "fetched_at": "2026-05-19T01:24:05Z",
   "source": "datagolf.com/major-fields",
-  "playerCount": 85,
-  "firstTimerCount": 10,
+  "playerCount": 101,
+  "firstTimerCount": 20,
   "field": [
     {
       "id": "dg_18417",
@@ -656,6 +656,15 @@
       "amateur": false
     },
     {
+      "id": "dg_22002",
+      "name": "Adrien Dumont De Chassart",
+      "country": "BEL",
+      "owgr": 156,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
       "id": "dg_15856",
       "name": "Cameron Smith",
       "country": "AUS",
@@ -694,6 +703,15 @@
       "amateur": false
     },
     {
+      "id": "dg_24766",
+      "name": "Tom Kim",
+      "country": "KOR",
+      "owgr": 141,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
       "id": "dg_29197",
       "name": "Michael Brennan",
       "country": "USA",
@@ -707,6 +725,39 @@
       "name": "Marco Penge",
       "country": "ENG",
       "owgr": 43,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "usopen"
+      ],
+      "amateur": false
+    },
+    {
+      "id": "dg_20727",
+      "name": "Ugo Coussaud",
+      "country": "FRA",
+      "owgr": 208,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "usopen"
+      ],
+      "amateur": false
+    },
+    {
+      "id": "dg_30463",
+      "name": "Caleb Surratt",
+      "country": "USA",
+      "owgr": 263,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "usopen"
+      ],
+      "amateur": false
+    },
+    {
+      "id": "dg_29347",
+      "name": "Cooper Dossey",
+      "country": "USA",
+      "owgr": 270,
       "majorsWon": [],
       "firstTimerAt": [
         "usopen"
@@ -732,6 +783,26 @@
       "amateur": false
     },
     {
+      "id": "dg_25601",
+      "name": "Matthew Jordan",
+      "country": "ENG",
+      "owgr": 254,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_18027",
+      "name": "Nathan Kimsey",
+      "country": "ENG",
+      "owgr": 241,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "usopen"
+      ],
+      "amateur": false
+    },
+    {
       "id": "dg_14792",
       "name": "Adrien Saddier",
       "country": "FRA",
@@ -740,6 +811,15 @@
       "firstTimerAt": [
         "usopen"
       ],
+      "amateur": false
+    },
+    {
+      "id": "dg_11357",
+      "name": "Peter Uihlein",
+      "country": "USA",
+      "owgr": 165,
+      "majorsWon": [],
+      "firstTimerAt": [],
       "amateur": false
     },
     {
@@ -752,12 +832,63 @@
       "amateur": false
     },
     {
+      "id": "dg_7548",
+      "name": "Graeme McDowell",
+      "country": "NIR",
+      "owgr": 9999,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_15676",
+      "name": "Niklas Norgaard",
+      "country": "DEN",
+      "owgr": 251,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_23048",
+      "name": "Jimmy Stanger",
+      "country": "USA",
+      "owgr": 9999,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "usopen"
+      ],
+      "amateur": false
+    },
+    {
       "id": "dg_5716",
       "name": "Padraig Harrington",
       "country": "IRL",
       "owgr": 9999,
       "majorsWon": [],
       "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_31235",
+      "name": "Rocco Paolo Repetto Taylor",
+      "country": "ESP",
+      "owgr": 333,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "usopen"
+      ],
+      "amateur": false
+    },
+    {
+      "id": "dg_24127",
+      "name": "Angel Hidalgo Portillo",
+      "country": "ESP",
+      "owgr": 299,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "usopen"
+      ],
       "amateur": false
     },
     {
@@ -805,6 +936,28 @@
       "amateur": true
     },
     {
+      "id": "dg_21901",
+      "name": "Manav Shah",
+      "country": "USA",
+      "owgr": 9999,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "usopen"
+      ],
+      "amateur": false
+    },
+    {
+      "id": "dg_18349",
+      "name": "T.K. Kim",
+      "country": "USA",
+      "owgr": 9999,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "usopen"
+      ],
+      "amateur": false
+    },
+    {
       "id": "dg_33759",
       "name": "Mason Howell",
       "country": "USA",
@@ -812,6 +965,17 @@
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": true
+    },
+    {
+      "id": "dg_23549",
+      "name": "Filippo Celli",
+      "country": "ITA",
+      "owgr": 429,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "usopen"
+      ],
+      "amateur": false
     }
   ]
 }

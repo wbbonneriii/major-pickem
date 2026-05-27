@@ -3,10 +3,10 @@
   "tournamentId": "usopen",
   "event_name": "U.S. Open",
   "course": "Shinnecock Hills Golf Club, June 18th–21st",
-  "fetched_at": "2026-05-25T12:28:37Z",
+  "fetched_at": "2026-05-27T13:25:31Z",
   "source": "datagolf.com/major-fields",
-  "playerCount": 101,
-  "firstTimerCount": 20,
+  "playerCount": 104,
+  "firstTimerCount": 23,
   "field": [
     {
       "id": "dg_18417",
@@ -841,6 +841,17 @@
       "amateur": false
     },
     {
+      "id": "dg_14371",
+      "name": "Taihei Sato",
+      "country": "JPN",
+      "owgr": 424,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "usopen"
+      ],
+      "amateur": false
+    },
+    {
       "id": "dg_15676",
       "name": "Niklas Norgaard",
       "country": "DEN",
@@ -892,6 +903,17 @@
       "amateur": false
     },
     {
+      "id": "dg_25263",
+      "name": "Kaito Onishi",
+      "country": "JPN",
+      "owgr": 9999,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "usopen"
+      ],
+      "amateur": false
+    },
+    {
       "id": "dg_35013",
       "name": "Mateo Pulcini",
       "country": "ARG",
@@ -934,6 +956,17 @@
         "usopen"
       ],
       "amateur": true
+    },
+    {
+      "id": "dg_20761",
+      "name": "Ryuichi Oiwa",
+      "country": "JPN",
+      "owgr": 378,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "usopen"
+      ],
+      "amateur": false
     },
     {
       "id": "dg_21901",

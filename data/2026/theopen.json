@@ -3,9 +3,9 @@
   "tournamentId": "theopen",
   "event_name": "Open Championship",
   "course": "Royal Birkdale Golf Club, July 16th–19th",
-  "fetched_at": "2026-05-25T12:28:37Z",
+  "fetched_at": "2026-05-27T13:25:31Z",
   "source": "datagolf.com/major-fields",
-  "playerCount": 111,
+  "playerCount": 113,
   "firstTimerCount": 21,
   "field": [
     {
@@ -975,6 +975,15 @@
       "amateur": false
     },
     {
+      "id": "dg_863",
+      "name": "John Daly",
+      "country": "USA",
+      "owgr": 9999,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
       "id": "dg_27019",
       "name": "Fifa Laopakdee",
       "country": "THA",
@@ -984,6 +993,17 @@
         "theopen"
       ],
       "amateur": true
+    },
+    {
+      "id": "dg_915",
+      "name": "Todd Hamilton",
+      "country": "USA",
+      "owgr": 9999,
+      "majorsWon": [
+        "theopen"
+      ],
+      "firstTimerAt": [],
+      "amateur": false
     },
     {
       "id": "dg_19390",

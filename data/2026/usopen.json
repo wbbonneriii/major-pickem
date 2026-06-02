@@ -3,10 +3,10 @@
   "tournamentId": "usopen",
   "event_name": "U.S. Open",
   "course": "Shinnecock Hills Golf Club, June 18th–21st",
-  "fetched_at": "2026-06-01T12:38:47Z",
+  "fetched_at": "2026-06-02T12:16:31Z",
   "source": "datagolf.com/major-fields",
-  "playerCount": 104,
-  "firstTimerCount": 23,
+  "playerCount": 105,
+  "firstTimerCount": 24,
   "field": [
     {
       "id": "dg_18417",
@@ -803,6 +803,17 @@
         "usopen"
       ],
       "amateur": false
+    },
+    {
+      "id": "dg_32089",
+      "name": "Preston Stout",
+      "country": "USA",
+      "owgr": 9999,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "usopen"
+      ],
+      "amateur": true
     },
     {
       "id": "dg_25601",

@@ -3,10 +3,10 @@
   "tournamentId": "usopen",
   "event_name": "U.S. Open",
   "course": "Shinnecock Hills Golf Club, June 18th–21st",
-  "fetched_at": "2026-06-09T04:04:57Z",
+  "fetched_at": "2026-06-09T19:19:08Z",
   "source": "datagolf.com/major-fields",
-  "playerCount": 148,
-  "firstTimerCount": 45,
+  "playerCount": 150,
+  "firstTimerCount": 46,
   "field": [
     {
       "id": "dg_18417",
@@ -499,6 +499,15 @@
       "name": "Keith Mitchell",
       "country": "USA",
       "owgr": 100,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_14704",
+      "name": "Andrew Putnam",
+      "country": "USA",
+      "owgr": 84,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -1255,6 +1264,17 @@
         "usopen"
       ],
       "amateur": false
+    },
+    {
+      "id": "dg_34994",
+      "name": "Hamilton Coleman",
+      "country": "USA",
+      "owgr": 9999,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "usopen"
+      ],
+      "amateur": true
     },
     {
       "id": "dg_35013",

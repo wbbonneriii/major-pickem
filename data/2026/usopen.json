@@ -3,7 +3,7 @@
   "tournamentId": "usopen",
   "event_name": "U.S. Open",
   "course": "Shinnecock Hills Golf Club, June 18th–21st",
-  "fetched_at": "2026-06-09T19:19:08Z",
+  "fetched_at": "2026-06-11T13:54:36Z",
   "source": "datagolf.com/major-fields",
   "playerCount": 150,
   "firstTimerCount": 46,
@@ -842,17 +842,6 @@
       "amateur": false
     },
     {
-      "id": "dg_22465",
-      "name": "Marco Penge",
-      "country": "ENG",
-      "owgr": 47,
-      "majorsWon": [],
-      "firstTimerAt": [
-        "usopen"
-      ],
-      "amateur": false
-    },
-    {
       "id": "dg_18424",
       "name": "Kevin Roy",
       "country": "USA",
@@ -1044,6 +1033,17 @@
       "owgr": 176,
       "majorsWon": [],
       "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_27164",
+      "name": "Chandler Phillips",
+      "country": "USA",
+      "owgr": 178,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "usopen"
+      ],
       "amateur": false
     },
     {

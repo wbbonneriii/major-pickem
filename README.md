@@ -14,7 +14,7 @@ from the ESPN public leaderboard — no backend, no database, no API key.
 - **Multi-year** — 2024 – 2026 built in; add more in `YEAR_DATA` in `index.html`
 - **Multiple games per tournament** — start as many games as you want under each Major, each with its own players, picks, and scores
 - **Snake draft** — standard snake ordering (A-B → B-A → A-B…) for any number of players
-- **Starter categories** (configurable quotas per game) — Top 10, International, No Major Wins, First Timers
+- **Starter categories** (configurable quotas per game) — Top 10, Wildcard (any field player), International, No Major Wins, First Timers
 - **Alternates** — each user drafts N alternates (default 2) after their starters; any field player qualifies
 - **Swap starter ↔ alternate** — swap in an alternate from the scoreboard; their category label transfers with them
 - **Global no-duplicates** — once a player is picked in any category, they're removed everywhere

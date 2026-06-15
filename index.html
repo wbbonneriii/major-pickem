@@ -176,6 +176,7 @@ function tournamentsForYear(year) {
 // Category metadata (source of truth for dropdown rendering)
 const CATEGORIES = [
   { id:'top10',        label:'Top 10',          help:'Current OWGR rank 1–10.' },
+  { id:'wildcard',     label:'Wildcard',        help:'Any player in the field — your pick.' },
   { id:'international',label:'International',   help:'Non-USA players ranked outside Top 10.' },
   { id:'nomajorwins',  label:'No Major Wins',   help:'Field members who have never won a professional Major.' },
   { id:'firsttimers',  label:'First Timers',    help:'Players making their debut at this Major.' }
@@ -303,7 +304,7 @@ const SEED_FIELD = [
   { id:'p_david_puig', name:'David Puig', country:'ESP', owgr:999, majorsWon:[], firstTimerAt:[] },
   { id:'p_andrew_putnam', name:'Andrew Putnam', country:'USA', owgr:999, majorsWon:[], firstTimerAt:[] },
   { id:'p_rahm', name:'Jon Rahm', country:'ESP', owgr:80, majorsWon:['usopen','masters'], firstTimerAt:[] },
-  { id:'p_rai', name:'Aaron Rai', country:'ENG', owgr:38, majorsWon:[], firstTimerAt:[] },
+  { id:'p_rai', name:'Aaron Rai', country:'ENG', owgr:38, majorsWon:['pga'], firstTimerAt:[] },
   { id:'p_reed', name:'Patrick Reed', country:'USA', owgr:70, majorsWon:['masters'], firstTimerAt:[] },
   { id:'p_reitan', name:'Kristoffer Reitan', country:'NOR', owgr:110, majorsWon:[], firstTimerAt:['pga'] },
   { id:'p_davis_riley', name:'Davis Riley', country:'USA', owgr:999, majorsWon:[], firstTimerAt:[] },
@@ -349,7 +350,7 @@ const SEED_FIELD = [
 
 // ---------- STATE ----------
 // Per-category pick quota for STARTERS. Total starters per user = sum of these.
-const DEFAULT_PICKS_BY_CATEGORY = { top10: 2, international: 1, nomajorwins: 1, firsttimers: 1 };
+const DEFAULT_PICKS_BY_CATEGORY = { top10: 1, wildcard: 1, international: 1, nomajorwins: 1, firsttimers: 1 };
 // Alternates (not counted in team score unless swapped in). Any field player qualifies.
 const DEFAULT_ALTERNATES_PER_USER = 2;
 
@@ -492,6 +493,27 @@ function dedupeFieldByName(s) {
   return removed;
 }
 
+// Reconcile each field player's major-win record against SEED_FIELD (the curated source
+// of truth) on EVERY load — not just on a SEED_VERSION bump. A saved game freezes a roster
+// snapshot at draft time, so a player who has since won a Major (e.g. J.J. Spaun, Aaron Rai)
+// would otherwise stay flagged as having no wins and keep showing up in the "No Major Wins"
+// pool. We take the UNION of seed + existing wins so a win tracked in one source (seed) and
+// not the other (a DataGolf/ESPN pull, or vice-versa) is preserved rather than clobbered.
+// Picks already made are unaffected — eligibility is only evaluated at pick time.
+function reconcileMajorsFromSeed(s) {
+  if (!s || !Array.isArray(s.field) || !s.field.length) return 0;
+  const seedByName = new Map(SEED_FIELD.map(p => [normalizeName(p.name), p]));
+  let touched = 0;
+  s.field.forEach(p => {
+    const seed = seedByName.get(normalizeName(p.name));
+    if (!seed || !Array.isArray(seed.majorsWon)) return;
+    const union = Array.from(new Set([...(p.majorsWon || []), ...seed.majorsWon])).sort();
+    const before = (p.majorsWon || []).slice().sort();
+    if (JSON.stringify(before) !== JSON.stringify(union)) { p.majorsWon = union; touched++; }
+  });
+  return touched;
+}
+
 // One-shot pass over every saved game in the multi-game store. Runs at app boot so games
 // the user hasn't opened recently still get fixed in place rather than only on load.
 function repairAllSavedGames() {
@@ -507,6 +529,7 @@ function repairAllSavedGames() {
     touched += repairPickIds(games[id]);
     touched += alignFieldToSeedIds(games[id]);
     touched += dedupeFieldByName(games[id]);
+    touched += reconcileMajorsFromSeed(games[id]);
   }
   if (touched) {
     try { localStorage.setItem(GAMES_KEY, JSON.stringify(games)); } catch (_) {}
@@ -548,6 +571,7 @@ function loadState() {
         parsed.field = SEED_FIELD;
         parsed.seedVersion = SEED_VERSION;
       }
+      reconcileMajorsFromSeed(parsed);
       const merged = { ...DEFAULT_STATE(), ...parsed };
       ensureDraftOrderCovers(merged);
       return merged;
@@ -599,6 +623,7 @@ function loadGame(id) {
     state.field = SEED_FIELD;
     state.seedVersion = SEED_VERSION;
   }
+  reconcileMajorsFromSeed(state);
   ensureDraftOrderCovers(state);
   persist();
   if (repaired) setTimeout(() => toast(`Recovered ${repaired} pick${repaired === 1 ? '' : 's'} from stale roster IDs.`), 50);
@@ -634,6 +659,7 @@ function hydrateSharedPayload(payload) {
     if (pickIds.has(p.id) && !pickIds.has(existing.id)) byName.set(k, p);
   }
   payload.field = Array.from(byName.values());
+  reconcileMajorsFromSeed(payload);
   payload.seedVersion = SEED_VERSION;
   if (!payload.picksByCategory) payload.picksByCategory = { ...DEFAULT_PICKS_BY_CATEGORY };
   if (payload.alternatesPerUser == null) payload.alternatesPerUser = DEFAULT_ALTERNATES_PER_USER;
@@ -781,6 +807,7 @@ function isPlayerInCategory(player, categoryId, tournamentId) {
     case 'international': return player.country !== 'USA' && player.owgr > 10;
     case 'nomajorwins':   return (player.majorsWon || []).length === 0;
     case 'firsttimers':   return (player.firstTimerAt || []).includes(tournamentId);
+    case 'wildcard':      return true;   // any field player
     case 'alternate':     return true;   // any field player
     default: return false;
   }
@@ -1271,6 +1298,7 @@ async function loadAutoField({ silent = false } = {}) {
       firstTimerAt: Array.isArray(p.firstTimerAt) ? p.firstTimerAt : [],
       amateur: !!p.amateur
     }));
+    reconcileMajorsFromSeed(state);
     persist(); render();
     const ft = state.field.filter(p => (p.firstTimerAt||[]).includes(state.tournamentId)).length;
     if (!silent) toast(`Loaded ${state.field.length} players from DataGolf (${ft} first-timers).`);

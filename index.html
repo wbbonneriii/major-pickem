@@ -766,6 +766,55 @@ function decodePayload(s) {
   } catch (e) { return null; }
 }
 
+// ---------- COMPRESSED SHARE LINKS (#z=) ----------
+// The legacy #g= fragment is raw Base64 of the JSON — even slimmed it runs several KB
+// because JSON repeats keys and player names dozens of times. #z= deflate-compresses the
+// JSON first (typically 60–70% smaller) using the browser's built-in CompressionStream.
+// Old #g= links still decode; new links use #z= when the browser supports compression.
+const CAN_COMPRESS = typeof CompressionStream !== 'undefined' && typeof DecompressionStream !== 'undefined';
+
+function bytesToB64url(bytes) {
+  let bin = ''; const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function b64urlToBytes(s) {
+  const b64 = s.replace(/-/g,'+').replace(/_/g,'/') + '==='.slice((s.length+3)%4);
+  const bin = atob(b64); const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+async function deflateStr(str) {
+  const cs = new CompressionStream('deflate-raw');
+  const w = cs.writable.getWriter(); w.write(new TextEncoder().encode(str)); w.close();
+  const buf = await new Response(cs.readable).arrayBuffer();
+  return bytesToB64url(new Uint8Array(buf));
+}
+async function inflateStr(s) {
+  const ds = new DecompressionStream('deflate-raw');
+  const w = ds.writable.getWriter(); w.write(b64urlToBytes(s)); w.close();
+  const buf = await new Response(ds.readable).arrayBuffer();
+  return new TextDecoder().decode(buf);
+}
+
+// Decode + apply a shared game from a URL hash. Handles both #z= (compressed, async) and
+// #g= (legacy raw). Used by the hashchange handler and the initial boot for #z= links.
+async function loadSharedFromHash(hash) {
+  if (!hash) return false;
+  let payload = null;
+  try {
+    if (hash.startsWith('#z=')) payload = JSON.parse(await inflateStr(hash.slice(3)));
+    else if (hash.startsWith('#g=')) payload = decodePayload(hash.slice(3));
+  } catch (e) { console.warn('Bad share payload', e); }
+  if (!payload) return false;
+  hydrateSharedPayload(payload);
+  persist(payload);
+  history.replaceState(null, '', window.location.pathname + window.location.search);
+  render();
+  toast('Loaded shared game.');
+  return true;
+}
+
 // ---------- DRAFT LOGIC ----------
 function buildSnakeOrder(userIds, rounds) {
   // Standard snake: round 1 = A,B,C…  round 2 = C,B,A  etc.
@@ -2039,7 +2088,7 @@ function renderScoreboard() {
 }
 
 // ---------- SHARE ----------
-function buildShareUrl() {
+async function buildShareUrl() {
   // Only ship what's needed to render the recipient's draft board + scoreboard.
   // State.scores contains every ESPN-synced golfer (60+), and state.field mirrors
   // that — including them all blows the URL past 30KB, which destination apps
@@ -2076,14 +2125,17 @@ function buildShareUrl() {
     lastSync: state.lastSync,
     eventState: state.eventState
   };
-  const encoded = encodePayload(slim);
   const base = window.location.href.split('#')[0];
-  return `${base}#g=${encoded}`;
+  if (CAN_COMPRESS) {
+    try { return `${base}#z=${await deflateStr(JSON.stringify(slim))}`; }
+    catch (e) { console.warn('Compression failed, using raw link', e); }
+  }
+  return `${base}#g=${encodePayload(slim)}`;
 }
 
-function openShareModal() {
+async function openShareModal() {
   if (!state.tournamentId) { toast('Pick a tournament first.'); return; }
-  const url = buildShareUrl();
+  const url = await buildShareUrl();
   const modal = $('#share-modal');
   const ta = $('#share-modal-url');
   const meta = $('#share-modal-meta');
@@ -2127,10 +2179,7 @@ $('#nav-reset').addEventListener('click', resetAll);
 
 window.addEventListener('hashchange', () => {
   const h = window.location.hash;
-  if (h && h.startsWith('#g=')) {
-    const p = decodePayload(h.slice(3));
-    if (p) { hydrateSharedPayload(p); persist(p); history.replaceState(null,'',window.location.pathname); render(); toast('Loaded shared game.'); }
-  }
+  if (h && (h.startsWith('#z=') || h.startsWith('#g='))) loadSharedFromHash(h);
 });
 
 // One-pass repair of every saved game's stale pick IDs. Idempotent and cheap; runs at
@@ -2139,6 +2188,11 @@ window.addEventListener('hashchange', () => {
 repairAllSavedGames();
 
 render();
+
+// A compressed (#z=) share link can't be decoded synchronously inside loadState (the
+// CompressionStream API is async), so loadState renders local state first and we apply
+// the shared game here on boot. Legacy #g= links are already consumed by loadState.
+if ((window.location.hash || '').startsWith('#z=')) loadSharedFromHash(window.location.hash);
 </script>
 </body>
 </html>

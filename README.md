@@ -23,6 +23,7 @@ from the ESPN public leaderboard — no backend, no database, no API key.
 - **Winner rules** — (1) picker of the champion wins; (2) otherwise most cuts made; (3) tiebreaker is lowest team score
 - **localStorage persistence** — games survive refreshes
 - **Shareable URL** — slim Base64 hash fragment encodes only what's needed; shared links land in the recipient's saved-games list
+- **Shared async draft rooms** — text/email each player a link and run the snake draft from separate phones, on your own time; picks sync automatically and each person is notified when it's their turn (requires a one-time free Firebase Realtime Database URL — see below)
 
 ---
 
@@ -113,6 +114,47 @@ When anyone opens the link:
 No server ever sees the data.
 
 ---
+
+## Shared Async Draft Rooms
+
+Run a snake draft with someone who isn't sitting next to you — each player drafts from their
+own phone, whenever it's their turn. This is built for the two-game-per-major pattern (e.g.
+the Tim/Hodge game) where a live call isn't possible.
+
+**How it works**
+
+1. **Host** sets up players + categories and clicks **Start Snake Draft** as usual.
+2. On the draft screen, click **📲 Shared Room**. The app creates a room and shows one
+   link **per player** (identity baked into each link), with **Text** and **Email** buttons.
+3. Send each other player their link. They open it, the app drops them straight into the
+   draft **as that player**, and shows the live board.
+4. Whoever is on the clock makes their pick; everyone else sees a **"Waiting on …"** card
+   that refreshes every few seconds and buzzes/notifies when it becomes their turn.
+5. The draft is done when all picks are in — the scoreboard appears for everyone, and each
+   device syncs ESPN scores on its own.
+
+The room only carries the draft (players, picks, field) — not live scores. Anyone with a
+link can draft as that player, so treat the links like the draft itself (low-stakes golf
+picks, no logins).
+
+**One-time setup (free, ~10 min)** — enables rooms for all future majors:
+
+1. Go to [console.firebase.google.com](https://console.firebase.google.com) → **Add project** (any name; you can skip Analytics).
+2. **Build → Realtime Database → Create Database → Start in test mode.**
+3. Copy the database URL shown at the top of the **Data** tab — it looks like
+   `https://major-pickem-xxxx-default-rtdb.firebaseio.com`.
+4. In `index.html`, paste it into the `FIREBASE_DB_URL` constant near the top
+   (`const FIREBASE_DB_URL = 'https://…';`) and re-upload to GitHub.
+
+That's it — no API key needed (the REST endpoint + default `/rooms` rules are enough).
+Leave `FIREBASE_DB_URL` blank to keep the app single-device; the one-shot **Share** link
+on the scoreboard still works either way.
+
+> Test mode rules expire after 30 days. To keep rooms working long-term, set the Realtime
+> Database rules to allow read/write only under `/rooms`:
+> ```json
+> { "rules": { "rooms": { ".read": true, ".write": true } } }
+> ```
 
 ## Data Sources
 

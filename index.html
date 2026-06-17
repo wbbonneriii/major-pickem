@@ -128,6 +128,16 @@ const GAMES_KEY = 'major-pickem:games:v1';
 // Bump when SEED_FIELD changes so existing users get the refreshed roster on next load.
 const SEED_VERSION = 10;
 
+// ---------- SHARED DRAFT ROOM (async snake draft across two phones) ----------
+// Paste your free Firebase Realtime Database URL between the quotes to enable shared
+// rooms. It looks like: https://major-pickem-xxxx-default-rtdb.firebaseio.com
+// (Project Settings has the project; Realtime Database → Data shows this URL at the top.)
+// No API key is needed — the REST endpoint + open-on-/rooms security rules are enough.
+// Leave blank to keep the app in single-device mode (one-shot #z= share links still work).
+const FIREBASE_DB_URL = 'https://major-pickem-default-rtdb.firebaseio.com';
+const ROOM_ENABLED = !!FIREBASE_DB_URL;
+const ROOM_POLL_MS = 4000;  // how often each phone checks for the other player's pick
+
 // Year-independent tournament metadata.
 const TOURNAMENTS = [
   { id:'masters',  name:'The Masters',          shortName:'Masters',  month:'April', color:'#006747', accent:'#b38b00' },
@@ -374,7 +384,11 @@ const DEFAULT_STATE = () => ({
   field: SEED_FIELD,          // editable roster
   scores: {},                 // playerId -> { total, today, thru, madeCut, rounds:[...], pos }
   lastSync: null,
-  eventState: null            // 'pre' | 'in' | 'post' — last-synced ESPN event state; gates winner banner
+  eventState: null,           // 'pre' | 'in' | 'post' — last-synced ESPN event state; gates winner banner
+  roomId: null,               // shared-room id when this game is drafted async across phones; null = local
+  roomMode: false,            // true while picks sync through the shared room
+  roomRole: null,             // which user (id) THIS device drafts as
+  roomRev: 0                  // last room revision this device has applied (optimistic-concurrency guard)
 });
 
 let state = loadState();
@@ -1220,6 +1234,7 @@ function render() {
                          renderScoreboard();
   view.classList.add('fade-in');
   root.appendChild(view);
+  syncRoomPolling();
 }
 
 // ---------- HOME ----------
@@ -1716,10 +1731,25 @@ function renderDraft() {
         `Pick ${state.currentPickIndex+1} of ${state.draftOrder.length} • Round ${round} of ${totalRounds}${pickingAlternate ? ' • Alternate round' : ''}`)
     ),
     el('div',{class:'flex items-center gap-2'},
-      el('button',{class:'btn btn-ghost', onclick:undoLastPick, disabled: state.picks.length===0}, 'Undo Last'),
-      el('button',{class:'btn btn-ghost', onclick:()=>{ state.users=[]; state.draftOrder=[]; state.picks=[]; state.currentPickIndex=0; persist(); render(); }}, 'Back to Setup')
+      el('button',{class:'btn btn-ghost', onclick:openRoomModal}, state.roomMode ? '📲 Room Links' : '📲 Shared Room'),
+      el('button',{class:'btn btn-ghost', onclick:undoLastPick, disabled: state.picks.length===0 || state.roomMode, title: state.roomMode ? 'Undo is disabled in a shared room' : ''}, 'Undo Last'),
+      el('button',{class:'btn btn-ghost', onclick:()=>{ state.users=[]; state.draftOrder=[]; state.picks=[]; state.currentPickIndex=0; persist(); render(); }, disabled: state.roomMode}, 'Back to Setup')
     )
   ));
+
+  // Shared-room status banner — who you are + whose turn it is.
+  if (state.roomMode) {
+    const meName = (state.users.find(u => u.id === state.roomRole) || {}).name || '—';
+    const yourTurn = picker && picker.id === state.roomRole;
+    wrap.appendChild(el('div',{class:'card p-3 mb-4 flex items-center justify-between flex-wrap gap-2 ' + (yourTurn ? 'border-masters-600 border-2' : 'border-gray-200')},
+      el('div',{class:'text-sm'},
+        el('span',{class:'font-semibold text-masters-800'}, 'Shared room'),
+        el('span',{class:'text-gray-600'}, ` • you are ${meName}`)
+      ),
+      el('span',{class:'pill ' + (yourTurn ? 'pill-green' : '')},
+        picker ? (yourTurn ? '🟢 Your turn — pick now' : `⏳ Waiting on ${picker.name}…`) : 'Draft complete')
+    ));
+  }
 
   // On the clock card — pills show starter categories + alternates
   const pickerSlotPills = () => {
@@ -1756,7 +1786,8 @@ function renderDraft() {
   wrap.appendChild(onClock);
 
   // Dropdowns: category pickers while any starter slot is open, then a single alternate picker.
-  if (picker) {
+  const myTurn = !state.roomMode || (picker && picker.id === state.roomRole);
+  if (picker && myTurn) {
     const playerLabel = (p) => {
       const rank = (p.owgr && p.owgr < 500) ? `#${p.owgr}` : 'NR';
       const am = p.amateur ? ' (Am)' : '';
@@ -1787,7 +1818,7 @@ function renderDraft() {
             if (!val) return toast('Choose a player first.');
             const err = makePick(picker.id, c.id, val);
             if (err) return toast(err);
-            persist(); render();
+            persist(); render(); afterLocalPick();
           }
         }, full ? 'Filled' : `Pick ${c.label} (${usedCount+1}/${quota})`);
         grid.appendChild(el('div',{class:'card p-4'},
@@ -1820,7 +1851,7 @@ function renderDraft() {
           if (!val) return toast('Choose a player first.');
           const err = makePick(picker.id, 'alternate', val);
           if (err) return toast(err);
-          persist(); render();
+          persist(); render(); afterLocalPick();
         }
       }, full ? 'Filled' : `Pick Alternate (${altUsed+1}/${altQuota})`);
       wrap.appendChild(el('div',{class:'card p-4'},
@@ -1832,6 +1863,14 @@ function renderDraft() {
         sel, btn
       ));
     }
+  } else if (picker) {
+    // Shared room, the other player is on the clock — show a waiting card instead of pickers.
+    wrap.appendChild(el('div',{class:'card p-6 text-center'},
+      el('div',{class:'text-3xl mb-2'},'⏳'),
+      el('div',{class:'font-serif text-xl text-masters-800'}, `Waiting on ${picker.name}`),
+      el('div',{class:'text-sm text-gray-600 mt-1'}, `Their pick will land here automatically — this page checks every few seconds. You'll be notified when it's your turn.`),
+      el('button',{class:'btn btn-ghost mt-3', onclick:()=>roomPollOnce()}, 'Check now')
+    ));
   } else {
     wrap.appendChild(el('div',{class:'card p-5 text-center'},'Draft complete.'));
   }
@@ -2166,6 +2205,285 @@ $('#share-modal-copy').addEventListener('click', copyShareUrl);
 $('#share-modal').addEventListener('click', (e) => { if (e.target.id === 'share-modal') closeShareModal(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeShareModal(); });
 
+// ---------- SHARED DRAFT ROOM ----------
+// A room holds the authoritative draft state in Firebase Realtime DB. Each phone joins
+// "as" one player (carried in the link). A phone may only write when it's that player's
+// turn; a lightweight poller pulls the other player's picks in. Snake drafts are strictly
+// turn-based, so there is never concurrent writing — the rev guard just stops double-taps.
+
+function roomUrl(roomId) {
+  return `${FIREBASE_DB_URL.replace(/\/+$/,'')}/rooms/${roomId}.json`;
+}
+async function roomGet(roomId) {
+  const r = await fetch(roomUrl(roomId), { cache: 'no-store' });
+  if (!r.ok) throw new Error('GET ' + r.status);
+  return await r.json();
+}
+async function roomPut(roomId, doc) {
+  const r = await fetch(roomUrl(roomId), {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(doc)
+  });
+  if (!r.ok) throw new Error('PUT ' + r.status);
+  return await r.json();
+}
+
+// Unlike the one-shot view-only #z= share, a draft room must ship the FULL field — the
+// joiner drafts from it, so every undrafted player plus the category attributes
+// (majorsWon / firstTimerAt) have to travel. Both phones already bake in SEED_FIELD, but
+// shipping the host's field verbatim keeps eligibility identical even after a custom
+// "Pull Field from ESPN" or pasted field. ~150 players is a few KB — fine for a PUT body.
+function roomFieldFull() {
+  return (state.field || []).map(p => ({
+    id: p.id, name: p.name, country: p.country, owgr: p.owgr,
+    amateur: !!p.amateur, majorsWon: p.majorsWon || [], firstTimerAt: p.firstTimerAt || []
+  }));
+}
+// Room docs carry the draft, NOT live scores — each device syncs ESPN locally after the draft.
+function serializeRoomDoc(rev, by) {
+  return {
+    v: 1, seedVersion: SEED_VERSION,
+    tournamentId: state.tournamentId, year: state.year, gameName: state.gameName,
+    users: state.users, picksByCategory: state.picksByCategory,
+    alternatesPerUser: state.alternatesPerUser,
+    draftOrder: state.draftOrder, currentPickIndex: state.currentPickIndex,
+    picks: state.picks, field: roomFieldFull(),
+    rev: rev, updatedAt: new Date().toISOString(), lastBy: by || null
+  };
+}
+
+// Fold an incoming room doc into local state. Mirrors hydrateSharedPayload's field merge
+// (SEED_FIELD + doc.field, dedupe by id then name, prefer pick-referenced ids) so names
+// always resolve. Never touches roomId / roomMode / roomRole (set by the caller).
+function applyRoomDoc(doc) {
+  if (!doc) return;
+  const byId = new Map();
+  (SEED_FIELD || []).forEach(p => byId.set(p.id, p));
+  (doc.field || []).forEach(p => byId.set(p.id, p));
+  const pickIds = new Set((doc.picks || []).map(pk => pk.playerId).filter(Boolean));
+  const byName = new Map();
+  for (const p of byId.values()) {
+    const k = normalizeName(p.name);
+    const ex = byName.get(k);
+    if (!ex) { byName.set(k, p); continue; }
+    if (pickIds.has(p.id) && !pickIds.has(ex.id)) byName.set(k, p);
+  }
+  state.tournamentId     = doc.tournamentId ?? state.tournamentId;
+  state.year             = doc.year ?? state.year;
+  state.gameName         = doc.gameName || state.gameName;
+  state.users            = doc.users || state.users;
+  state.picksByCategory  = doc.picksByCategory || state.picksByCategory;
+  state.alternatesPerUser= doc.alternatesPerUser ?? state.alternatesPerUser;
+  state.draftOrder       = doc.draftOrder || state.draftOrder;
+  state.currentPickIndex = doc.currentPickIndex ?? state.currentPickIndex;
+  state.picks            = doc.picks || state.picks;
+  state.field            = Array.from(byName.values());
+  state.seedVersion      = SEED_VERSION;
+  state.roomRev          = doc.rev || 0;
+  reconcileMajorsFromSeed(state);
+  ensureDraftOrderCovers(state);
+  persist();
+}
+
+function roomLink(roomId, asUserId) {
+  const base = window.location.href.split('#')[0];
+  return `${base}#room=${roomId}${asUserId ? `&as=${asUserId}` : ''}`;
+}
+
+// Host turns the in-progress draft into a shared room. Returns the roomId (or null).
+async function createRoom() {
+  if (!ROOM_ENABLED) { toast('Add your Firebase DB URL in index.html to enable shared rooms.'); return null; }
+  if (!state.draftOrder.length) { toast('Start the snake draft first, then open the shared room.'); return null; }
+  if (state.roomMode && state.roomId) return state.roomId;  // already a room
+  const roomId = 'rm' + Math.random().toString(36).slice(2, 8);
+  state.roomId = roomId;
+  state.roomMode = true;
+  state.roomRev = 1;
+  if (!state.roomRole) state.roomRole = state.users[0]?.id || null;  // host drafts as player 1 by default
+  try {
+    await roomPut(roomId, serializeRoomDoc(1, state.roomRole));
+  } catch (e) {
+    state.roomMode = false; state.roomId = null; state.roomRev = 0;
+    persist();
+    toast('Could not create the room: ' + e.message);
+    return null;
+  }
+  persist();
+  return roomId;
+}
+
+async function joinRoom(roomId, asUserId) {
+  if (!ROOM_ENABLED) { toast('Shared draft rooms are not configured on this site.'); return false; }
+  let doc;
+  try { doc = await roomGet(roomId); } catch (e) { toast('Could not load that room: ' + e.message); return false; }
+  if (!doc) { toast('That draft room was not found.'); return false; }
+  // The room is always its own game entry — never overwrite whatever game the joiner had
+  // open. Reset locally-synced scores only when switching IN from a different game.
+  const roomGameId = 'g_room_' + roomId;
+  if (state.gameId !== roomGameId) { state.scores = {}; state.lastSync = null; state.eventState = null; }
+  state.gameId = roomGameId;
+  state.roomId = roomId;
+  state.roomMode = true;
+  state.roomRole = asUserId || state.roomRole || (doc.users && doc.users[0]?.id) || null;
+  applyRoomDoc(doc);   // sets roomRev + persists
+  render();
+  const me = (state.users || []).find(u => u.id === state.roomRole);
+  toast(me ? `Joined as ${me.name}.` : 'Joined shared draft room.');
+  return true;
+}
+
+// Push the local draft up after this device makes a pick. Re-reads first so a stale device
+// adopts the other player's newer state instead of clobbering it.
+async function pushRoom() {
+  if (!state.roomMode || !state.roomId) return;
+  try {
+    const remote = await roomGet(state.roomId);
+    if (remote && (remote.rev || 0) > (state.roomRev || 0)) {
+      applyRoomDoc(remote); render();
+      toast('Draft updated from the other player.');
+      return;
+    }
+    const nextRev = (state.roomRev || 0) + 1;
+    await roomPut(state.roomId, serializeRoomDoc(nextRev, state.roomRole));
+    state.roomRev = nextRev; persist();
+  } catch (e) {
+    toast('Sync failed — your pick is saved here. It will retry on your next action.');
+  }
+}
+function afterLocalPick() { if (state.roomMode) pushRoom(); }
+
+// Background poller: pulls the other player's picks while we wait our turn.
+let roomPollTimer = null;
+async function roomPollOnce() {
+  if (!state.roomMode || !state.roomId) return;
+  let doc;
+  try { doc = await roomGet(state.roomId); } catch (e) { return; }
+  if (!doc) return;
+  if ((doc.rev || 0) > (state.roomRev || 0)) {
+    applyRoomDoc(doc);
+    render();
+    const picker = currentPicker();
+    if (picker && picker.id === state.roomRole && !draftComplete()) {
+      toast(`Your turn — ${picker.name} is on the clock.`);
+      try { if (navigator.vibrate) navigator.vibrate(200); } catch (_) {}
+    }
+  }
+}
+function syncRoomPolling() {
+  const shouldPoll = ROOM_ENABLED && state.roomMode && state.roomId
+    && currentRoute() !== 'home' && !draftComplete();
+  if (shouldPoll && !roomPollTimer) {
+    roomPollTimer = setInterval(roomPollOnce, ROOM_POLL_MS);
+  } else if (!shouldPoll && roomPollTimer) {
+    clearInterval(roomPollTimer); roomPollTimer = null;
+  }
+}
+
+function parseRoomHash(h) {
+  if (!h || !h.startsWith('#room=')) return null;
+  const params = new URLSearchParams(h.slice(1));
+  const roomId = params.get('room');
+  return roomId ? { roomId, as: params.get('as') || null } : null;
+}
+
+// Bare #room= link with no identity: ask the opener which player they are, then join.
+async function chooseIdentityAndJoin(roomId) {
+  let doc;
+  try { doc = await roomGet(roomId); } catch (e) { toast('Could not load that room.'); return; }
+  if (!doc || !(doc.users || []).length) { toast('That draft room was not found.'); return; }
+  const overlay = el('div',{class:'fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'});
+  const card = el('div',{class:'bg-white rounded-xl max-w-md w-full shadow-2xl overflow-hidden'},
+    el('div',{class:'px-6 py-4 border-b border-gray-200'},
+      el('h3',{class:'font-serif text-2xl text-masters-800 font-bold'},'Who are you?'),
+      el('div',{class:'text-sm text-gray-600 mt-1'}, `Joining ${doc.gameName || 'the draft'} — tap your name.`)
+    ),
+    el('div',{class:'p-6 flex flex-col gap-2'},
+      ...doc.users.map(u => el('button',{class:'btn btn-primary w-full', onclick:()=>{ overlay.remove(); joinRoom(roomId, u.id).then(()=>history.replaceState(null,'',location.pathname+location.search)); }}, u.name))
+    )
+  );
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+}
+
+// Host-facing modal: shows the per-player links to send out (one each, identity baked in).
+async function openRoomModal() {
+  if (!ROOM_ENABLED) {
+    const overlay = el('div',{class:'fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'});
+    overlay.addEventListener('click',(e)=>{ if (e.target === overlay) overlay.remove(); });
+    overlay.appendChild(el('div',{class:'bg-white rounded-xl max-w-lg w-full shadow-2xl overflow-hidden'},
+      el('div',{class:'px-6 py-4 border-b border-gray-200 flex items-center justify-between'},
+        el('h3',{class:'font-serif text-2xl text-masters-800 font-bold'},'Enable shared rooms'),
+        el('button',{class:'btn btn-ghost',onclick:()=>overlay.remove()},'✕')),
+      el('div',{class:'p-6 text-sm text-gray-700 space-y-2'},
+        el('p',{},'Shared async drafting needs a free Firebase Realtime Database (one-time, ~10 min):'),
+        el('ol',{class:'list-decimal ml-5 space-y-1'},
+          el('li',{},'Go to console.firebase.google.com → Add project (any name).'),
+          el('li',{},'Build → Realtime Database → Create database → Start in test mode.'),
+          el('li',{},'Copy the database URL shown at the top of the Data tab.'),
+          el('li',{},'Paste it into FIREBASE_DB_URL near the top of index.html, then re-upload to GitHub.')
+        ),
+        el('p',{class:'text-gray-500'},'Until then, the one-shot Share link (on the scoreboard) still works.')
+      )));
+    document.body.appendChild(overlay);
+    return;
+  }
+  if (!state.roomMode || !state.roomId) {
+    const id = await createRoom();
+    if (!id) return;
+  }
+  const overlay = el('div',{class:'fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'});
+  overlay.addEventListener('click',(e)=>{ if (e.target === overlay) overlay.remove(); });
+  document.addEventListener('keydown', function esc(e){ if (e.key==='Escape'){ overlay.remove(); document.removeEventListener('keydown', esc); } });
+
+  const meName = (state.users.find(u=>u.id===state.roomRole)||{}).name || '—';
+  const others = state.users.filter(u => u.id !== state.roomRole);
+  const t = tournamentFor(state.tournamentId);
+
+  // Let the host correct which player THEY are (if they aren't player 1).
+  const roleSel = el('select',{class:'border border-gray-300 rounded px-2 py-1 text-sm',
+    onchange:(e)=>{ state.roomRole = e.target.value; persist(); overlay.remove(); openRoomModal(); }},
+    ...state.users.map(u => el('option',{value:u.id, ...(u.id===state.roomRole?{selected:'selected'}:{})}, u.name)));
+
+  const linkRow = (u) => {
+    const link = roomLink(state.roomId, u.id);
+    const input = el('input',{class:'flex-1 min-w-0 border border-gray-300 rounded px-2 py-1 font-mono text-xs', readonly:'readonly', value:link, onclick:(e)=>e.target.select()});
+    const body = encodeURIComponent(`You're invited to draft our ${t?.shortName || ''} Pick'em. Open this link to make your picks:\n${link}`);
+    return el('div',{class:'border border-gray-200 rounded-lg p-3'},
+      el('div',{class:'flex items-center justify-between mb-2'},
+        el('div',{class:'font-serif text-lg text-masters-800'}, `Link for ${u.name}`),
+        el('div',{class:'flex gap-2'},
+          el('a',{class:'btn btn-ghost text-sm', href:`sms:?&body=${body}`}, 'Text'),
+          el('a',{class:'btn btn-ghost text-sm', href:`mailto:?subject=${encodeURIComponent("Major Pick'em Draft")}&body=${body}`}, 'Email')
+        )
+      ),
+      el('div',{class:'flex gap-2 items-center'},
+        input,
+        el('button',{class:'btn btn-primary text-sm', onclick:()=>{
+          (navigator.clipboard && window.isSecureContext)
+            ? navigator.clipboard.writeText(link).then(()=>toast(`Copied ${u.name}'s link.`)).catch(()=>{ input.select(); document.execCommand('copy'); toast('Copied.'); })
+            : (input.select(), document.execCommand('copy'), toast('Copied.'));
+        }}, 'Copy')
+      )
+    );
+  };
+
+  const card = el('div',{class:'bg-white rounded-xl max-w-xl w-full shadow-2xl overflow-hidden'},
+    el('div',{class:'px-6 py-4 border-b border-gray-200 flex items-center justify-between'},
+      el('div',{},
+        el('h3',{class:'font-serif text-2xl text-masters-800 font-bold'},'Shared Draft Room'),
+        el('div',{class:'text-sm text-gray-600 mt-1'}, 'Send each player their own link. Picks sync back here automatically — each person drafts whenever it’s their turn.')
+      ),
+      el('button',{class:'btn btn-ghost',onclick:()=>overlay.remove(),'aria-label':'Close'},'✕')
+    ),
+    el('div',{class:'p-6 space-y-3'},
+      el('div',{class:'flex items-center gap-2 text-sm text-gray-700'}, el('span',{},'You are drafting as:'), roleSel),
+      ...(others.length ? others.map(linkRow) : [el('div',{class:'text-sm text-gray-500'},'Add more players in Setup to generate their links.')]),
+      el('div',{class:'text-xs text-gray-500 pt-1'}, `Room ${state.roomId} • golf-pick data only, no logins. Anyone with a link can draft as that player.`)
+    )
+  );
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+}
+
 // ---------- NAV / WIRING ----------
 $('#nav-home').addEventListener('click', () => {
   // Games live in the games store; the active state is just the game in view.
@@ -2179,6 +2497,12 @@ $('#nav-reset').addEventListener('click', resetAll);
 
 window.addEventListener('hashchange', () => {
   const h = window.location.hash;
+  const rh = parseRoomHash(h);
+  if (rh) {
+    if (rh.as) joinRoom(rh.roomId, rh.as).then(() => history.replaceState(null, '', location.pathname + location.search));
+    else chooseIdentityAndJoin(rh.roomId);
+    return;
+  }
   if (h && (h.startsWith('#z=') || h.startsWith('#g='))) loadSharedFromHash(h);
 });
 
@@ -2193,6 +2517,16 @@ render();
 // CompressionStream API is async), so loadState renders local state first and we apply
 // the shared game here on boot. Legacy #g= links are already consumed by loadState.
 if ((window.location.hash || '').startsWith('#z=')) loadSharedFromHash(window.location.hash);
+
+// A #room= link opens the shared async draft. With an &as= identity we join straight in;
+// a bare room link asks the opener who they are first.
+{
+  const rh = parseRoomHash(window.location.hash || '');
+  if (rh) {
+    if (rh.as) joinRoom(rh.roomId, rh.as).then(() => history.replaceState(null, '', location.pathname + location.search));
+    else chooseIdentityAndJoin(rh.roomId);
+  }
+}
 </script>
 </body>
 </html>

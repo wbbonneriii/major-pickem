@@ -3,10 +3,10 @@
   "tournamentId": "theopen",
   "event_name": "Open Championship",
   "course": "Royal Birkdale Golf Club, July 16th–19th",
-  "fetched_at": "2026-06-22T13:33:23Z",
+  "fetched_at": "2026-06-24T22:15:29Z",
   "source": "datagolf.com/major-fields",
-  "playerCount": 119,
-  "firstTimerCount": 20,
+  "playerCount": 120,
+  "firstTimerCount": 21,
   "field": [
     {
       "id": "dg_18417",
@@ -999,6 +999,17 @@
       "id": "dg_31844",
       "name": "Jack Buchanan",
       "country": "RSA",
+      "owgr": 9999,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "theopen"
+      ],
+      "amateur": true
+    },
+    {
+      "id": "dg_22633",
+      "name": "Stuart Grehan",
+      "country": "IRL",
       "owgr": 9999,
       "majorsWon": [],
       "firstTimerAt": [

@@ -3,10 +3,10 @@
   "tournamentId": "theopen",
   "event_name": "Open Championship",
   "course": "Royal Birkdale Golf Club, July 16th–19th",
-  "fetched_at": "2026-06-24T22:15:29Z",
+  "fetched_at": "2026-06-29T14:03:50Z",
   "source": "datagolf.com/major-fields",
-  "playerCount": 120,
-  "firstTimerCount": 21,
+  "playerCount": 121,
+  "firstTimerCount": 22,
   "field": [
     {
       "id": "dg_18417",
@@ -316,6 +316,15 @@
       "amateur": false
     },
     {
+      "id": "dg_25362",
+      "name": "Alex Fitzpatrick",
+      "country": "ENG",
+      "owgr": 67,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
       "id": "dg_14838",
       "name": "Patrick Reed",
       "country": "USA",
@@ -524,6 +533,15 @@
       "name": "Michael Kim",
       "country": "USA",
       "owgr": 51,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_26745",
+      "name": "Eugenio Chacarra",
+      "country": "ESP",
+      "owgr": 87,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -1109,21 +1127,14 @@
       "amateur": false
     },
     {
-      "id": "dg_25362",
-      "name": "Alex Fitzpatrick",
-      "country": "ENG",
-      "owgr": 67,
+      "id": "dg_20085",
+      "name": "Oliver Lindell",
+      "country": "FIN",
+      "owgr": 128,
       "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_26745",
-      "name": "Eugenio Chacarra",
-      "country": "ESP",
-      "owgr": 87,
-      "majorsWon": [],
-      "firstTimerAt": [],
+      "firstTimerAt": [
+        "theopen"
+      ],
       "amateur": false
     },
     {

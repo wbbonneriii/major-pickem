@@ -3,7 +3,7 @@
   "tournamentId": "theopen",
   "event_name": "Open Championship",
   "course": "Royal Birkdale Golf Club, July 16th–19th",
-  "fetched_at": "2026-06-29T14:03:50Z",
+  "fetched_at": "2026-06-29T16:34:56Z",
   "source": "datagolf.com/major-fields",
   "playerCount": 121,
   "firstTimerCount": 22,
@@ -34,16 +34,7 @@
       "id": "dg_19195",
       "name": "Jon Rahm",
       "country": "ESP",
-      "owgr": 10,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_12294",
-      "name": "Tommy Fleetwood",
-      "country": "ENG",
-      "owgr": 7,
+      "owgr": 11,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -58,13 +49,11 @@
       "amateur": false
     },
     {
-      "id": "dg_19895",
-      "name": "Xander Schauffele",
-      "country": "USA",
-      "owgr": 11,
-      "majorsWon": [
-        "theopen"
-      ],
+      "id": "dg_12294",
+      "name": "Tommy Fleetwood",
+      "country": "ENG",
+      "owgr": 7,
+      "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
     },
@@ -78,11 +67,33 @@
       "amateur": false
     },
     {
-      "id": "dg_23950",
-      "name": "Ludvig Aberg",
-      "country": "SWE",
-      "owgr": 14,
+      "id": "dg_23604",
+      "name": "Wyndham Clark",
+      "country": "USA",
+      "owgr": 9,
       "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_22085",
+      "name": "Collin Morikawa",
+      "country": "USA",
+      "owgr": 6,
+      "majorsWon": [
+        "theopen"
+      ],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_19895",
+      "name": "Xander Schauffele",
+      "country": "USA",
+      "owgr": 13,
+      "majorsWon": [
+        "theopen"
+      ],
       "firstTimerAt": [],
       "amateur": false
     },
@@ -96,19 +107,10 @@
       "amateur": false
     },
     {
-      "id": "dg_14609",
-      "name": "Si Woo Kim",
-      "country": "KOR",
-      "owgr": 21,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_23604",
-      "name": "Wyndham Clark",
-      "country": "USA",
-      "owgr": 8,
+      "id": "dg_23950",
+      "name": "Ludvig Aberg",
+      "country": "SWE",
+      "owgr": 19,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -126,27 +128,16 @@
       "id": "dg_15466",
       "name": "Patrick Cantlay",
       "country": "USA",
-      "owgr": 37,
+      "owgr": 36,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
     },
     {
-      "id": "dg_22085",
-      "name": "Collin Morikawa",
-      "country": "USA",
-      "owgr": 9,
-      "majorsWon": [
-        "theopen"
-      ],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_18634",
-      "name": "Maverick McNealy",
-      "country": "USA",
-      "owgr": 36,
+      "id": "dg_14609",
+      "name": "Si Woo Kim",
+      "country": "KOR",
+      "owgr": 22,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -155,6 +146,15 @@
       "id": "dg_17536",
       "name": "J.J. Spaun",
       "country": "USA",
+      "owgr": 10,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_18841",
+      "name": "Viktor Hovland",
+      "country": "NOR",
       "owgr": 12,
       "majorsWon": [],
       "firstTimerAt": [],
@@ -170,91 +170,28 @@
       "amateur": false
     },
     {
-      "id": "dg_27774",
-      "name": "Chris Gotterup",
-      "country": "USA",
-      "owgr": 13,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
       "id": "dg_24968",
       "name": "Ben Griffin",
       "country": "USA",
-      "owgr": 18,
+      "owgr": 16,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
     },
     {
-      "id": "dg_14577",
-      "name": "Harris English",
+      "id": "dg_27774",
+      "name": "Chris Gotterup",
       "country": "USA",
-      "owgr": 24,
+      "owgr": 14,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
     },
     {
-      "id": "dg_19841",
-      "name": "Bryson DeChambeau",
+      "id": "dg_18634",
+      "name": "Maverick McNealy",
       "country": "USA",
-      "owgr": 34,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_6093",
-      "name": "Justin Rose",
-      "country": "ENG",
-      "owgr": 6,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_18841",
-      "name": "Viktor Hovland",
-      "country": "NOR",
-      "owgr": 30,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_14796",
-      "name": "Tyrrell Hatton",
-      "country": "ENG",
-      "owgr": 20,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_6430",
-      "name": "Adam Scott",
-      "country": "AUS",
-      "owgr": 52,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_21891",
-      "name": "Kurt Kitayama",
-      "country": "USA",
-      "owgr": 33,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_19396",
-      "name": "Jake Knapp",
-      "country": "USA",
-      "owgr": 44,
+      "owgr": 37,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -263,16 +200,52 @@
       "id": "dg_23323",
       "name": "Robert MacIntyre",
       "country": "SCO",
-      "owgr": 19,
+      "owgr": 20,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
     },
     {
-      "id": "dg_29767",
-      "name": "Ryan Gerard",
+      "id": "dg_14577",
+      "name": "Harris English",
       "country": "USA",
-      "owgr": 27,
+      "owgr": 29,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_6093",
+      "name": "Justin Rose",
+      "country": "ENG",
+      "owgr": 8,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_25362",
+      "name": "Alex Fitzpatrick",
+      "country": "ENG",
+      "owgr": 62,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_19841",
+      "name": "Bryson DeChambeau",
+      "country": "USA",
+      "owgr": 35,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_26096",
+      "name": "Akshay Bhatia",
+      "country": "USA",
+      "owgr": 25,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -289,73 +262,28 @@
       "amateur": false
     },
     {
+      "id": "dg_21891",
+      "name": "Kurt Kitayama",
+      "country": "USA",
+      "owgr": 33,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_14796",
+      "name": "Tyrrell Hatton",
+      "country": "ENG",
+      "owgr": 21,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
       "id": "dg_18554",
       "name": "Aaron Rai",
       "country": "ENG",
-      "owgr": 16,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_10419",
-      "name": "Alex Noren",
-      "country": "SWE",
-      "owgr": 23,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_21554",
-      "name": "J.T. Poston",
-      "country": "USA",
-      "owgr": 32,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_25362",
-      "name": "Alex Fitzpatrick",
-      "country": "ENG",
-      "owgr": 67,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_14838",
-      "name": "Patrick Reed",
-      "country": "USA",
-      "owgr": 29,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_26096",
-      "name": "Akshay Bhatia",
-      "country": "USA",
-      "owgr": 31,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_16841",
-      "name": "Min Woo Lee",
-      "country": "AUS",
-      "owgr": 39,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_12577",
-      "name": "Gary Woodland",
-      "country": "USA",
-      "owgr": 41,
+      "owgr": 18,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -373,25 +301,25 @@
       "id": "dg_18079",
       "name": "Joaquin Niemann",
       "country": "CHI",
-      "owgr": 61,
+      "owgr": 54,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
     },
     {
-      "id": "dg_29433",
-      "name": "Jacob Bridgeman",
+      "id": "dg_29767",
+      "name": "Ryan Gerard",
       "country": "USA",
-      "owgr": 25,
+      "owgr": 28,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
     },
     {
-      "id": "dg_21407",
-      "name": "Kristoffer Reitan",
-      "country": "NOR",
-      "owgr": 26,
+      "id": "dg_19396",
+      "name": "Jake Knapp",
+      "country": "USA",
+      "owgr": 44,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -406,13 +334,11 @@
       "amateur": false
     },
     {
-      "id": "dg_14636",
-      "name": "Jordan Spieth",
-      "country": "USA",
-      "owgr": 49,
-      "majorsWon": [
-        "theopen"
-      ],
+      "id": "dg_21407",
+      "name": "Kristoffer Reitan",
+      "country": "NOR",
+      "owgr": 26,
+      "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
     },
@@ -420,7 +346,70 @@
       "id": "dg_13562",
       "name": "Hideki Matsuyama",
       "country": "JPN",
-      "owgr": 28,
+      "owgr": 30,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_10419",
+      "name": "Alex Noren",
+      "country": "SWE",
+      "owgr": 24,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_6430",
+      "name": "Adam Scott",
+      "country": "AUS",
+      "owgr": 55,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_23602",
+      "name": "Nicolai Hojgaard",
+      "country": "DEN",
+      "owgr": 34,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_14838",
+      "name": "Patrick Reed",
+      "country": "USA",
+      "owgr": 31,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_29433",
+      "name": "Jacob Bridgeman",
+      "country": "USA",
+      "owgr": 27,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_26745",
+      "name": "Eugenio Chacarra",
+      "country": "ESP",
+      "owgr": 58,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_16841",
+      "name": "Min Woo Lee",
+      "country": "AUS",
+      "owgr": 39,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -435,24 +424,6 @@
       "amateur": false
     },
     {
-      "id": "dg_11889",
-      "name": "Ryan Fox",
-      "country": "NZL",
-      "owgr": 54,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_23602",
-      "name": "Nicolai Hojgaard",
-      "country": "DEN",
-      "owgr": 35,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
       "id": "dg_12965",
       "name": "Rickie Fowler",
       "country": "USA",
@@ -462,10 +433,10 @@
       "amateur": false
     },
     {
-      "id": "dg_17511",
-      "name": "Sepp Straka",
-      "country": "AUT",
-      "owgr": 22,
+      "id": "dg_21554",
+      "name": "J.T. Poston",
+      "country": "USA",
+      "owgr": 32,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -474,16 +445,7 @@
       "id": "dg_13126",
       "name": "Nick Taylor",
       "country": "CAN",
-      "owgr": 65,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_27194",
-      "name": "Harry Hall",
-      "country": "ENG",
-      "owgr": 70,
+      "owgr": 67,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -492,7 +454,7 @@
       "id": "dg_8825",
       "name": "Brian Harman",
       "country": "USA",
-      "owgr": 58,
+      "owgr": 61,
       "majorsWon": [
         "theopen"
       ],
@@ -500,10 +462,77 @@
       "amateur": false
     },
     {
+      "id": "dg_30445",
+      "name": "Angel Ayora",
+      "country": "ESP",
+      "owgr": 105,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "theopen"
+      ],
+      "amateur": false
+    },
+    {
+      "id": "dg_17576",
+      "name": "Corey Conners",
+      "country": "CAN",
+      "owgr": 50,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_14636",
+      "name": "Jordan Spieth",
+      "country": "USA",
+      "owgr": 53,
+      "majorsWon": [
+        "theopen"
+      ],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_12577",
+      "name": "Gary Woodland",
+      "country": "USA",
+      "owgr": 41,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_17543",
+      "name": "Michael Kim",
+      "country": "USA",
+      "owgr": 48,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_11889",
+      "name": "Ryan Fox",
+      "country": "NZL",
+      "owgr": 56,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_27194",
+      "name": "Harry Hall",
+      "country": "ENG",
+      "owgr": 72,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
       "id": "dg_9771",
       "name": "Jason Day",
       "country": "AUS",
-      "owgr": 47,
+      "owgr": 49,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -512,72 +541,7 @@
       "id": "dg_21362",
       "name": "Daniel Hillier",
       "country": "NZL",
-      "owgr": 97,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_30445",
-      "name": "Angel Ayora",
-      "country": "ESP",
-      "owgr": 114,
-      "majorsWon": [],
-      "firstTimerAt": [
-        "theopen"
-      ],
-      "amateur": false
-    },
-    {
-      "id": "dg_17543",
-      "name": "Michael Kim",
-      "country": "USA",
-      "owgr": 51,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_26745",
-      "name": "Eugenio Chacarra",
-      "country": "ESP",
-      "owgr": 87,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_16243",
-      "name": "Brooks Koepka",
-      "country": "USA",
-      "owgr": 113,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_17576",
-      "name": "Corey Conners",
-      "country": "CAN",
-      "owgr": 55,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_14559",
-      "name": "Scott Vincent",
-      "country": "ZIM",
-      "owgr": 149,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_28635",
-      "name": "Matt McCarty",
-      "country": "USA",
-      "owgr": 56,
+      "owgr": 98,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -586,7 +550,25 @@
       "id": "dg_17606",
       "name": "Daniel Berger",
       "country": "USA",
-      "owgr": 50,
+      "owgr": 47,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_16243",
+      "name": "Brooks Koepka",
+      "country": "USA",
+      "owgr": 114,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_28635",
+      "name": "Matt McCarty",
+      "country": "USA",
+      "owgr": 57,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -595,7 +577,25 @@
       "id": "dg_23475",
       "name": "Andrew Novak",
       "country": "USA",
-      "owgr": 63,
+      "owgr": 65,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_14559",
+      "name": "Scott Vincent",
+      "country": "ZIM",
+      "owgr": 150,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_17488",
+      "name": "Sungjae Im",
+      "country": "KOR",
+      "owgr": 78,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -604,7 +604,7 @@
       "id": "dg_15856",
       "name": "Cameron Smith",
       "country": "AUS",
-      "owgr": 137,
+      "owgr": 136,
       "majorsWon": [
         "theopen"
       ],
@@ -612,21 +612,32 @@
       "amateur": false
     },
     {
-      "id": "dg_17488",
-      "name": "Sungjae Im",
-      "country": "KOR",
-      "owgr": 79,
+      "id": "dg_18586",
+      "name": "Jordan Smith",
+      "country": "ENG",
+      "owgr": 81,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
     },
     {
-      "id": "dg_18586",
-      "name": "Jordan Smith",
-      "country": "ENG",
-      "owgr": 78,
+      "id": "dg_17511",
+      "name": "Sepp Straka",
+      "country": "AUT",
+      "owgr": 23,
       "majorsWon": [],
       "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_28268",
+      "name": "Kota Kaneko",
+      "country": "JPN",
+      "owgr": 103,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "theopen"
+      ],
       "amateur": false
     },
     {
@@ -639,39 +650,28 @@
       "amateur": false
     },
     {
-      "id": "dg_26947",
-      "name": "Casey Jarvis",
-      "country": "RSA",
-      "owgr": 82,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
       "id": "dg_23841",
       "name": "Rasmus Neergaard-Petersen",
       "country": "DEN",
-      "owgr": 86,
+      "owgr": 87,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
     },
     {
-      "id": "dg_28268",
-      "name": "Kota Kaneko",
-      "country": "JPN",
-      "owgr": 104,
+      "id": "dg_26947",
+      "name": "Casey Jarvis",
+      "country": "RSA",
+      "owgr": 83,
       "majorsWon": [],
-      "firstTimerAt": [
-        "theopen"
-      ],
+      "firstTimerAt": [],
       "amateur": false
     },
     {
       "id": "dg_13764",
       "name": "John Parry",
       "country": "ENG",
-      "owgr": 85,
+      "owgr": 86,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -680,7 +680,16 @@
       "id": "dg_23838",
       "name": "Rasmus Hojgaard",
       "country": "DEN",
-      "owgr": 81,
+      "owgr": 84,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
+      "id": "dg_29279",
+      "name": "Jackson Suber",
+      "country": "USA",
+      "owgr": 126,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -689,7 +698,7 @@
       "id": "dg_22322",
       "name": "Tom McKibbin",
       "country": "NIR",
-      "owgr": 135,
+      "owgr": 133,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -698,7 +707,7 @@
       "id": "dg_11276",
       "name": "Billy Horschel",
       "country": "USA",
-      "owgr": 142,
+      "owgr": 149,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -715,15 +724,6 @@
       "amateur": false
     },
     {
-      "id": "dg_29279",
-      "name": "Jackson Suber",
-      "country": "USA",
-      "owgr": 130,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
       "id": "dg_15310",
       "name": "Haotong Li",
       "country": "CHN",
@@ -736,7 +736,7 @@
       "id": "dg_22465",
       "name": "Marco Penge",
       "country": "ENG",
-      "owgr": 48,
+      "owgr": 51,
       "majorsWon": [],
       "firstTimerAt": [
         "theopen"
@@ -744,10 +744,19 @@
       "amateur": false
     },
     {
+      "id": "dg_21074",
+      "name": "Keita Nakajima",
+      "country": "JPN",
+      "owgr": 139,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
       "id": "dg_6986",
       "name": "Zach Johnson",
       "country": "USA",
-      "owgr": 416,
+      "owgr": 430,
       "majorsWon": [
         "theopen"
       ],
@@ -755,19 +764,10 @@
       "amateur": false
     },
     {
-      "id": "dg_21074",
-      "name": "Keita Nakajima",
-      "country": "JPN",
-      "owgr": 136,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
       "id": "dg_7672",
       "name": "Louis Oosthuizen",
       "country": "RSA",
-      "owgr": 396,
+      "owgr": 402,
       "majorsWon": [
         "theopen"
       ],
@@ -778,7 +778,7 @@
       "id": "dg_26850",
       "name": "Jesper Svensson",
       "country": "SWE",
-      "owgr": 160,
+      "owgr": 162,
       "majorsWon": [],
       "firstTimerAt": [
         "theopen"
@@ -789,18 +789,7 @@
       "id": "dg_27811",
       "name": "Martin Couvra",
       "country": "FRA",
-      "owgr": 155,
-      "majorsWon": [],
-      "firstTimerAt": [
-        "theopen"
-      ],
-      "amateur": false
-    },
-    {
-      "id": "dg_14987",
-      "name": "Francesco Laporta",
-      "country": "ITA",
-      "owgr": 205,
+      "owgr": 157,
       "majorsWon": [],
       "firstTimerAt": [
         "theopen"
@@ -811,7 +800,18 @@
       "id": "dg_20766",
       "name": "Dan Brown",
       "country": "ENG",
-      "owgr": 119,
+      "owgr": 122,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "theopen"
+      ],
+      "amateur": false
+    },
+    {
+      "id": "dg_14987",
+      "name": "Francesco Laporta",
+      "country": "ITA",
+      "owgr": 208,
       "majorsWon": [],
       "firstTimerAt": [
         "theopen"
@@ -828,10 +828,30 @@
       "amateur": false
     },
     {
+      "id": "dg_24200",
+      "name": "Elvis Smylie",
+      "country": "AUS",
+      "owgr": 118,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "theopen"
+      ],
+      "amateur": false
+    },
+    {
+      "id": "dg_24962",
+      "name": "Alistair Docherty",
+      "country": "USA",
+      "owgr": 191,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
       "id": "dg_14792",
       "name": "Adrien Saddier",
       "country": "FRA",
-      "owgr": 117,
+      "owgr": 119,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -840,7 +860,7 @@
       "id": "dg_7655",
       "name": "Francesco Molinari",
       "country": "ITA",
-      "owgr": 286,
+      "owgr": 293,
       "majorsWon": [
         "theopen"
       ],
@@ -848,41 +868,30 @@
       "amateur": false
     },
     {
-      "id": "dg_24962",
-      "name": "Alistair Docherty",
-      "country": "USA",
-      "owgr": 193,
-      "majorsWon": [],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
-      "id": "dg_24200",
-      "name": "Elvis Smylie",
-      "country": "AUS",
-      "owgr": 116,
-      "majorsWon": [],
-      "firstTimerAt": [
-        "theopen"
-      ],
-      "amateur": false
-    },
-    {
       "id": "dg_25739",
       "name": "Ren Yonezawa",
       "country": "JPN",
-      "owgr": 237,
+      "owgr": 241,
       "majorsWon": [],
       "firstTimerAt": [
         "theopen"
       ],
+      "amateur": false
+    },
+    {
+      "id": "dg_23733",
+      "name": "Frederic LaCroix",
+      "country": "FRA",
+      "owgr": 248,
+      "majorsWon": [],
+      "firstTimerAt": [],
       "amateur": false
     },
     {
       "id": "dg_19232",
       "name": "Trav Smyth",
       "country": "AUS",
-      "owgr": 138,
+      "owgr": 137,
       "majorsWon": [],
       "firstTimerAt": [
         "theopen"
@@ -893,16 +902,16 @@
       "id": "dg_7677",
       "name": "Shaun Norris",
       "country": "RSA",
-      "owgr": 89,
+      "owgr": 90,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
     },
     {
-      "id": "dg_23733",
-      "name": "Frederic LaCroix",
-      "country": "FRA",
-      "owgr": 265,
+      "id": "dg_14780",
+      "name": "Joakim Lagergren",
+      "country": "SWE",
+      "owgr": 151,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -911,7 +920,7 @@
       "id": "dg_10523",
       "name": "Ryutaro Nagano",
       "country": "JPN",
-      "owgr": 484,
+      "owgr": 492,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -920,20 +929,11 @@
       "id": "dg_15756",
       "name": "Kazuki Higa",
       "country": "JPN",
-      "owgr": 165,
+      "owgr": 170,
       "majorsWon": [],
       "firstTimerAt": [
         "theopen"
       ],
-      "amateur": false
-    },
-    {
-      "id": "dg_14780",
-      "name": "Joakim Lagergren",
-      "country": "SWE",
-      "owgr": 173,
-      "majorsWon": [],
-      "firstTimerAt": [],
       "amateur": false
     },
     {
@@ -959,6 +959,17 @@
       "amateur": false
     },
     {
+      "id": "dg_5716",
+      "name": "Padraig Harrington",
+      "country": "IRL",
+      "owgr": 9999,
+      "majorsWon": [
+        "theopen"
+      ],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
       "id": "dg_5994",
       "name": "Henrik Stenson",
       "country": "SWE",
@@ -973,7 +984,7 @@
       "id": "dg_17872",
       "name": "Jeong Woo Ham",
       "country": "KOR",
-      "owgr": 406,
+      "owgr": 405,
       "majorsWon": [],
       "firstTimerAt": [
         "theopen"
@@ -981,21 +992,10 @@
       "amateur": false
     },
     {
-      "id": "dg_5716",
-      "name": "Padraig Harrington",
-      "country": "IRL",
-      "owgr": 9999,
-      "majorsWon": [
-        "theopen"
-      ],
-      "firstTimerAt": [],
-      "amateur": false
-    },
-    {
       "id": "dg_18994",
       "name": "Naoyuki Kataoka",
       "country": "JPN",
-      "owgr": 372,
+      "owgr": 381,
       "majorsWon": [],
       "firstTimerAt": [
         "theopen"
@@ -1039,7 +1039,7 @@
       "id": "dg_15993",
       "name": "Michael Hollick",
       "country": "RSA",
-      "owgr": 339,
+      "owgr": 348,
       "majorsWon": [],
       "firstTimerAt": [
         "theopen"
@@ -1090,7 +1090,7 @@
       "id": "dg_19390",
       "name": "Cameron John",
       "country": "AUS",
-      "owgr": 245,
+      "owgr": 247,
       "majorsWon": [],
       "firstTimerAt": [
         "theopen"
@@ -1130,7 +1130,7 @@
       "id": "dg_20085",
       "name": "Oliver Lindell",
       "country": "FIN",
-      "owgr": 128,
+      "owgr": 116,
       "majorsWon": [],
       "firstTimerAt": [
         "theopen"
@@ -1141,7 +1141,7 @@
       "id": "dg_26991",
       "name": "Jayden Schaper",
       "country": "RSA",
-      "owgr": 76,
+      "owgr": 79,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false
@@ -1150,7 +1150,7 @@
       "id": "dg_20084",
       "name": "Mikael Lindberg",
       "country": "SWE",
-      "owgr": 132,
+      "owgr": 131,
       "majorsWon": [],
       "firstTimerAt": [
         "theopen"
@@ -1172,7 +1172,7 @@
       "id": "dg_15326",
       "name": "Andy Sullivan",
       "country": "ENG",
-      "owgr": 126,
+      "owgr": 124,
       "majorsWon": [],
       "firstTimerAt": [],
       "amateur": false

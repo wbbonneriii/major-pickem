@@ -3,10 +3,10 @@
   "tournamentId": "theopen",
   "event_name": "Open Championship",
   "course": "Royal Birkdale Golf Club, July 16th–19th",
-  "fetched_at": "2026-07-07T13:08:39Z",
+  "fetched_at": "2026-07-07T13:32:26Z",
   "source": "datagolf.com/major-fields",
-  "playerCount": 150,
-  "firstTimerCount": 30,
+  "playerCount": 152,
+  "firstTimerCount": 31,
   "field": [
     {
       "id": "dg_18417",
@@ -1310,6 +1310,15 @@
       "amateur": true
     },
     {
+      "id": "dg_4761",
+      "name": "David Duval",
+      "country": "USA",
+      "owgr": 9999,
+      "majorsWon": [],
+      "firstTimerAt": [],
+      "amateur": false
+    },
+    {
       "id": "dg_35013",
       "name": "Mateo Pulcini",
       "country": "ARG",
@@ -1322,6 +1331,17 @@
       "id": "dg_29973",
       "name": "Tim Wiedemeyer",
       "country": "GER",
+      "owgr": 9999,
+      "majorsWon": [],
+      "firstTimerAt": [
+        "theopen"
+      ],
+      "amateur": true
+    },
+    {
+      "id": "dg_29461",
+      "name": "Lev Grinberg",
+      "country": "UKR",
       "owgr": 9999,
       "majorsWon": [],
       "firstTimerAt": [

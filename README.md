@@ -31,9 +31,16 @@ from the ESPN public leaderboard — no backend, no database, no API key.
 
 ```
 major-pickem/
-├── index.html                    # Complete SPA: HTML + Tailwind CSS (CDN) + Vanilla JS
-├── README.md                     # This file
-└── Master_Development_Plan_v2.md # As-built plan (v2.0)
+├── index.html                        # Complete SPA: HTML + Tailwind CSS (CDN) + Vanilla JS
+├── README.md                         # This file
+├── Master_Development_Plan_v2.md     # As-built plan (v2.0)
+├── data/<year>/<id>.json             # Pre-fetched fields (majors) + cup feeds (ryder/presidents)
+├── scripts/
+│   ├── fetch-fields.py               # Majors field puller (DataGolf)
+│   └── fetch-cup.py                  # Ryder/Presidents Cup feed puller (ESPN core API)
+└── .github/workflows/
+    ├── update-fields.yml             # Cron: refresh major fields
+    └── update-cups.yml               # Cron: refresh cup pairings + live results
 ```
 
 No build step, no dependencies to install.
@@ -156,12 +163,59 @@ on the scoreboard still works either way.
 > { "rules": { "rooms": { ".read": true, ".write": true } } }
 > ```
 
+## Team Events (Ryder Cup & Presidents Cup)
+
+A second game **mode** for the biennial team match-play events, shown under **Team Events** on
+the home page (below the four Majors). Instead of drafting golfers, each participant **predicts
+every match's winner and margin**.
+
+- **Ryder Cup** — USA vs **Europe**, odd years (2027, 2029…). 12/side, 3 days, **28 matches**,
+  14½ to win (14–14 → holder retains).
+- **Presidents Cup** — USA vs **International**, even years (2026, 2028…). 12/side, 4 days,
+  **30 matches**, 15½ to win (tie → shared).
+
+**Flow**
+1. **Setup** — pick the year, enter each 12-player team, add participants, and **Build standard
+   sessions** (the correct 28/30-match skeleton). Choose the host (commissioner).
+2. **Matches & Picks** — the host confirms pairings as captains announce them and flips a session
+   to **In Progress** (which **locks** that session's picks) then **Final**, entering each match's
+   winner + margin. Participants predict winner + margin for every open match.
+3. **Scoreboard** — a live USA-vs-opponent Cup tally with a to-win marker, the in-progress and
+   final matches, and a **participant leaderboard**.
+
+**Scoring** — **1 point** for the correct winner (a correctly predicted halved match counts),
+**+1 bonus** for the exact margin (e.g. you said `2&1` and it finished `2&1`).
+
+**Remote picking** — the same shared-room mechanism as the snake draft: the host opens a room and
+sends each participant their own link; everyone picks from their own phone and the board syncs.
+(Requires the one-time `FIREBASE_DB_URL` setup above; local play works without it.)
+
+**Auto-sync from ESPN** — pairings and live results sync automatically, same idea as the Majors:
+`scripts/fetch-cup.py` walks ESPN's public core API (one competition per match) and writes a flat
+`data/<year>/<cupType>.json`, refreshed by `.github/workflows/update-cups.yml` (every ~10 min;
+cheap off-season). The app reads that file same-origin — **↻ Sync ESPN** in the hub/scoreboard, plus
+a ~60s auto-poll. Switch a game to **Manual** to enter everything by hand; editing any pairing or
+result **pins** it (📌) so the feed won't overwrite you. Run the fetch locally with:
+
+```bash
+python3 scripts/fetch-cup.py --year 2025 --cup ryder   # writes data/2025/ryder.json
+python3 scripts/fetch-cup.py                            # auto: current + next year's cups
+```
+
+The event id is auto-discovered from the year; override with `--event <espnId>` (or the **Event ID**
+field in Setup) for a brand-new event ESPN hasn't tagged yet.
+
 ## Data Sources
 
 - **ESPN PGA Leaderboard** (public, no key):
   `https://site.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard`
   Used for live scoring, positions, and cut tracking. When no tournament is active, ESPN returns
   the most recent event. Year-specific events are fetched via `espnEventId` in `YEAR_DATA`.
+- **ESPN Golf core API** (public, no key) for **Team Events**:
+  `https://sports.core.api.espn.com/v2/sports/golf/leagues/pga/events/<id>` — a Ryder/Presidents
+  Cup event exposes one `competition` per match (foursome/fourball/singles) with pairings, live
+  status, and the match-play margin. `scripts/fetch-cup.py` flattens this server-side into
+  `data/<year>/<cupType>.json`.
 - **Seed field** — the `SEED_FIELD` constant in `index.html` is a curated 2026 Masters-week
   snapshot (OWGR Top 15, ranked pros, LIV golfers with deflated OWGR, and the 2026 Masters
   first-timers). Edit in-app (Setup → Field / Roster) before each Major, or click

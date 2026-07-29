@@ -1,0 +1,496 @@
+{
+  "cupType": "ryder",
+  "eventId": "401734110",
+  "event_name": "Ryder Cup",
+  "teams": {
+    "usa": {
+      "name": "United States"
+    },
+    "intl": {
+      "name": "Europe"
+    }
+  },
+  "sessions": [
+    {
+      "espnId": null,
+      "name": "Friday Morning Foursomes",
+      "day": 1,
+      "order": 1,
+      "type": "foursomes",
+      "status": "final",
+      "matches": [
+        {
+          "espnId": "11767",
+          "teamA": [
+            "Justin Thomas",
+            "Bryson DeChambeau"
+          ],
+          "teamB": [
+            "Tyrrell Hatton",
+            "Jon Rahm"
+          ],
+          "result": {
+            "winner": "intl",
+            "margin": "4 & 3"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11768",
+          "teamA": [
+            "Russell Henley",
+            "Scottie Scheffler"
+          ],
+          "teamB": [
+            "Matt Fitzpatrick",
+            "Ludvig Åberg"
+          ],
+          "result": {
+            "winner": "intl",
+            "margin": "5 & 3"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11769",
+          "teamA": [
+            "Harris English",
+            "Collin Morikawa"
+          ],
+          "teamB": [
+            "Rory McIlroy",
+            "Tommy Fleetwood"
+          ],
+          "result": {
+            "winner": "intl",
+            "margin": "5 & 4"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11770",
+          "teamA": [
+            "Patrick Cantlay",
+            "Xander Schauffele"
+          ],
+          "teamB": [
+            "Robert MacIntyre",
+            "Viktor Hovland"
+          ],
+          "result": {
+            "winner": "usa",
+            "margin": "2 Up"
+          },
+          "status": "final"
+        }
+      ]
+    },
+    {
+      "espnId": null,
+      "name": "Friday Afternoon Four-Balls",
+      "day": 1,
+      "order": 2,
+      "type": "fourballs",
+      "status": "final",
+      "matches": [
+        {
+          "espnId": "11771",
+          "teamA": [
+            "Scottie Scheffler",
+            "J.J. Spaun"
+          ],
+          "teamB": [
+            "Sepp Straka",
+            "Jon Rahm"
+          ],
+          "result": {
+            "winner": "intl",
+            "margin": "3 & 2"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11772",
+          "teamA": [
+            "Bryson DeChambeau",
+            "Ben Griffin"
+          ],
+          "teamB": [
+            "Justin Rose",
+            "Tommy Fleetwood"
+          ],
+          "result": {
+            "winner": "intl",
+            "margin": "1 Up"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11773",
+          "teamA": [
+            "Justin Thomas",
+            "Cameron Young"
+          ],
+          "teamB": [
+            "Rasmus Højgaard",
+            "Ludvig Åberg"
+          ],
+          "result": {
+            "winner": "usa",
+            "margin": "6 & 5"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11774",
+          "teamA": [
+            "Patrick Cantlay",
+            "Sam Burns"
+          ],
+          "teamB": [
+            "Rory McIlroy",
+            "Shane Lowry"
+          ],
+          "result": {
+            "winner": "tie",
+            "margin": "Halved"
+          },
+          "status": "final"
+        }
+      ]
+    },
+    {
+      "espnId": null,
+      "name": "Saturday Morning Foursomes",
+      "day": 2,
+      "order": 3,
+      "type": "foursomes",
+      "status": "final",
+      "matches": [
+        {
+          "espnId": "11775",
+          "teamA": [
+            "Bryson DeChambeau",
+            "Cameron Young"
+          ],
+          "teamB": [
+            "Matt Fitzpatrick",
+            "Ludvig Åberg"
+          ],
+          "result": {
+            "winner": "usa",
+            "margin": "4 & 2"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11776",
+          "teamA": [
+            "Harris English",
+            "Collin Morikawa"
+          ],
+          "teamB": [
+            "Rory McIlroy",
+            "Tommy Fleetwood"
+          ],
+          "result": {
+            "winner": "intl",
+            "margin": "3 & 2"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11777",
+          "teamA": [
+            "Patrick Cantlay",
+            "Xander Schauffele"
+          ],
+          "teamB": [
+            "Tyrrell Hatton",
+            "Jon Rahm"
+          ],
+          "result": {
+            "winner": "intl",
+            "margin": "3 & 2"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11778",
+          "teamA": [
+            "Russell Henley",
+            "Scottie Scheffler"
+          ],
+          "teamB": [
+            "Robert MacIntyre",
+            "Viktor Hovland"
+          ],
+          "result": {
+            "winner": "intl",
+            "margin": "1 Up"
+          },
+          "status": "final"
+        }
+      ]
+    },
+    {
+      "espnId": null,
+      "name": "Saturday Afternoon Four-Balls",
+      "day": 2,
+      "order": 4,
+      "type": "fourballs",
+      "status": "final",
+      "matches": [
+        {
+          "espnId": "11779",
+          "teamA": [
+            "Justin Thomas",
+            "Cameron Young"
+          ],
+          "teamB": [
+            "Rory McIlroy",
+            "Shane Lowry"
+          ],
+          "result": {
+            "winner": "intl",
+            "margin": "2 Up"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11780",
+          "teamA": [
+            "Scottie Scheffler",
+            "Bryson DeChambeau"
+          ],
+          "teamB": [
+            "Justin Rose",
+            "Tommy Fleetwood"
+          ],
+          "result": {
+            "winner": "intl",
+            "margin": "3 & 2"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11781",
+          "teamA": [
+            "Xander Schauffele",
+            "J.J. Spaun"
+          ],
+          "teamB": [
+            "Sepp Straka",
+            "Jon Rahm"
+          ],
+          "result": {
+            "winner": "usa",
+            "margin": "1 Up"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11783",
+          "teamA": [
+            "Patrick Cantlay",
+            "Sam Burns"
+          ],
+          "teamB": [
+            "Tyrrell Hatton",
+            "Matt Fitzpatrick"
+          ],
+          "result": {
+            "winner": "intl",
+            "margin": "1 Up"
+          },
+          "status": "final"
+        }
+      ]
+    },
+    {
+      "espnId": null,
+      "name": "Sunday Singles",
+      "day": 3,
+      "order": 5,
+      "type": "singles",
+      "status": "final",
+      "matches": [
+        {
+          "espnId": "11784",
+          "teamA": [
+            "Cameron Young"
+          ],
+          "teamB": [
+            "Justin Rose"
+          ],
+          "result": {
+            "winner": "usa",
+            "margin": "1 Up"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11785",
+          "teamA": [
+            "Justin Thomas"
+          ],
+          "teamB": [
+            "Tommy Fleetwood"
+          ],
+          "result": {
+            "winner": "usa",
+            "margin": "1 Up"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11786",
+          "teamA": [
+            "Bryson DeChambeau"
+          ],
+          "teamB": [
+            "Matt Fitzpatrick"
+          ],
+          "result": {
+            "winner": "tie",
+            "margin": "Halved"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11787",
+          "teamA": [
+            "Scottie Scheffler"
+          ],
+          "teamB": [
+            "Rory McIlroy"
+          ],
+          "result": {
+            "winner": "usa",
+            "margin": "1 Up"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11788",
+          "teamA": [
+            "Patrick Cantlay"
+          ],
+          "teamB": [
+            "Ludvig Åberg"
+          ],
+          "result": {
+            "winner": "intl",
+            "margin": "2 & 1"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11789",
+          "teamA": [
+            "Xander Schauffele"
+          ],
+          "teamB": [
+            "Jon Rahm"
+          ],
+          "result": {
+            "winner": "usa",
+            "margin": "4 & 3"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11790",
+          "teamA": [
+            "J.J. Spaun"
+          ],
+          "teamB": [
+            "Sepp Straka"
+          ],
+          "result": {
+            "winner": "usa",
+            "margin": "2 & 1"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11791",
+          "teamA": [
+            "Russell Henley"
+          ],
+          "teamB": [
+            "Shane Lowry"
+          ],
+          "result": {
+            "winner": "tie",
+            "margin": "Halved"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11792",
+          "teamA": [
+            "Ben Griffin"
+          ],
+          "teamB": [
+            "Rasmus Højgaard"
+          ],
+          "result": {
+            "winner": "usa",
+            "margin": "1 Up"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11793",
+          "teamA": [
+            "Collin Morikawa"
+          ],
+          "teamB": [
+            "Tyrrell Hatton"
+          ],
+          "result": {
+            "winner": "tie",
+            "margin": "Halved"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11794",
+          "teamA": [
+            "Sam Burns"
+          ],
+          "teamB": [
+            "Robert MacIntyre"
+          ],
+          "result": {
+            "winner": "tie",
+            "margin": "Halved"
+          },
+          "status": "final"
+        },
+        {
+          "espnId": "11795",
+          "teamA": [
+            "Harris English"
+          ],
+          "teamB": [
+            "Viktor Hovland"
+          ],
+          "result": {
+            "winner": "tie",
+            "margin": "Halved"
+          },
+          "status": "final"
+        }
+      ]
+    }
+  ],
+  "cupScore": {
+    "usa": 13.0,
+    "intl": 15.0
+  },
+  "source": "espn-core",
+  "year": 2025,
+  "fetched_at": "2026-07-29T16:25:56.192510Z"
+}

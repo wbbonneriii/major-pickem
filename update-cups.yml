@@ -1,0 +1,52 @@
+name: Update team cups
+
+on:
+  schedule:
+    # Every 10 minutes — cheap when no cup is live (fetch-cup.py finds no event and exits
+    # without writing). During a Ryder/Presidents Cup week this keeps pairings + live
+    # match results fresh; the app reads the committed JSON same-origin.
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+    inputs:
+      year:
+        description: "Year (optional; blank = current + next)"
+        required: false
+      cup:
+        description: "ryder | presidents (optional)"
+        required: false
+      event:
+        description: "ESPN event id (optional; skips auto-discovery)"
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Fetch cup feed from ESPN
+        run: |
+          ARGS=""
+          if [[ -n "${{ github.event.inputs.year }}" ]]; then ARGS="$ARGS --year ${{ github.event.inputs.year }}"; fi
+          if [[ -n "${{ github.event.inputs.cup }}" ]]; then ARGS="$ARGS --cup ${{ github.event.inputs.cup }}"; fi
+          if [[ -n "${{ github.event.inputs.event }}" ]]; then ARGS="$ARGS --event ${{ github.event.inputs.event }}"; fi
+          python3 scripts/fetch-cup.py $ARGS
+
+      - name: Commit & push if changed
+        run: |
+          if [[ -n "$(git status --porcelain data/)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add data/
+            git commit -m "data: refresh cup feed ($(date -u +%Y-%m-%dT%H:%MZ))"
+            git push
+          else
+            echo "No changes."
+          fi

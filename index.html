@@ -183,6 +183,61 @@ function tournamentsForYear(year) {
   return TOURNAMENTS.map(t => tournamentFor(t.id, year));
 }
 
+// ---------- TEAM CUPS (Ryder Cup / Presidents Cup) ----------
+// A second game MODE: two fixed 12-player teams, session-by-session match-play pairings, and
+// participants who PREDICT each match's winner + margin (1 pt correct winner + 1 bonus for the
+// exact margin). Pairings + live results auto-sync from ESPN (data/<year>/<cupType>.json, built
+// by scripts/fetch-cup.py) with manual host entry as the always-available fallback.
+const CUP_TEMPLATES = {
+  presidents: {
+    id:'presidents', name:'Presidents Cup', shortName:'Presidents Cup',
+    teamA:'United States', teamB:'International',
+    color:'#0a2240', accent:'#b1121b',
+    teamColors:{ usa:'#0a3161', intl:'#334155' },
+    defaultYear:2026, toWin:15.5, total:30, retainOnTie:false,
+    // Standard 30-match skeleton (order/AM-PM can vary by edition — host can reorder/retype).
+    sessions:[
+      {day:1, type:'foursomes', count:5, name:'Day 1 Foursomes'},
+      {day:2, type:'fourballs', count:5, name:'Day 2 Four-Balls'},
+      {day:3, type:'foursomes', count:4, name:'Day 3 Foursomes'},
+      {day:3, type:'fourballs', count:4, name:'Day 3 Four-Balls'},
+      {day:4, type:'singles',  count:12, name:'Day 4 Singles'}
+    ]
+  },
+  ryder: {
+    id:'ryder', name:'Ryder Cup', shortName:'Ryder Cup',
+    teamA:'United States', teamB:'Europe',
+    color:'#c8102e', accent:'#003a70',
+    teamColors:{ usa:'#0a3161', intl:'#b8860b' },
+    defaultYear:2027, toWin:14.5, total:28, retainOnTie:true,
+    // Session names match ESPN's descriptions so the feed maps straight onto the skeleton.
+    sessions:[
+      {day:1, type:'foursomes', count:4, name:'Friday Morning Foursomes'},
+      {day:1, type:'fourballs', count:4, name:'Friday Afternoon Four-Balls'},
+      {day:2, type:'foursomes', count:4, name:'Saturday Morning Foursomes'},
+      {day:2, type:'fourballs', count:4, name:'Saturday Afternoon Four-Balls'},
+      {day:3, type:'singles',  count:12, name:'Sunday Singles'}
+    ]
+  }
+};
+const CUP_TYPES = Object.keys(CUP_TEMPLATES);
+const MATCH_TYPE_LABEL = { foursomes:'Foursomes', fourballs:'Four-Balls', singles:'Singles' };
+const PLAYERS_PER_MATCH = { foursomes:2, fourballs:2, singles:1 };
+// Match-play finishing margins offered in the dropdowns. A halved match uses winner:'tie'.
+const MARGIN_OPTIONS = ['1 up','2 up','2&1','3&2','3&1','4&3','4&2','5&4','5&3','6&5','6&4','7&6','8&7','9&8','10&8'];
+// Valid cup years for a type = matching parity (presidents even, ryder odd), 2024–2032, plus 2025 (real Ryder demo data).
+function cupYears(cupType) {
+  const wantEven = cupType === 'presidents';
+  const ys = [];
+  for (let y = 2024; y <= 2032; y++) if ((y % 2 === 0) === wantEven) ys.push(y);
+  return ys;
+}
+function normMargin(m) {
+  const s = (m || '').toString().toLowerCase().replace(/\s+/g,'');
+  if (!s || s === 'halved' || s === 'as' || s === 'a/s' || s === 'tied') return 'halved';
+  return s;
+}
+
 // Category metadata (source of truth for dropdown rendering)
 const CATEGORIES = [
   { id:'top10',        label:'Top 10',          help:'Current OWGR rank 1–10.' },
@@ -369,6 +424,7 @@ const totalPicksPerUser = (pbc, alts) => starterPicksPerUser(pbc) + (alts || 0);
 
 const DEFAULT_STATE = () => ({
   seedVersion: SEED_VERSION,
+  mode: 'major',              // 'major' = snake-draft Majors (default); 'teamcup' = Ryder/Presidents Cup
   gameId: null,               // identifier in the multi-game store; null when no game is active
   gameName: '',               // user-facing label for this game
   createdAt: null,
@@ -537,6 +593,7 @@ function repairAllSavedGames() {
   let touched = 0;
   for (const id of Object.keys(games)) {
     if (!games[id]) continue;
+    if (games[id].mode === 'teamcup') continue;   // cup games have no picks/field to repair
     // Order matters: repairPickIds uses the original (pre-alignment) field IDs to
     // remap stale pick references; alignFieldToSeedIds then rewrites field IDs to
     // seed; dedupeFieldByName collapses any remaining duplicates.
@@ -628,6 +685,16 @@ function loadGame(id) {
   const games = listGames();
   const g = games[id];
   if (!g) return false;
+  // Team-cup games have a totally different shape (no picks/field/draftOrder) — skip every
+  // Majors-only repair and run the light cup normalizer instead.
+  if (g.mode === 'teamcup') {
+    state = { ...DEFAULT_STATE(), ...g };
+    normalizeCupGame(state);
+    cupView = cupReady(state) ? 'hub' : 'setup';
+    cupActor = state.roomMode ? state.roomRole : (state.participants[0]?.id || null);
+    persist();
+    return true;
+  }
   state = { ...DEFAULT_STATE(), ...g };
   // Repair stale pick IDs using the game's saved field BEFORE the seedVersion swap.
   const repaired = repairPickIds(state);
@@ -695,6 +762,7 @@ function hydrateSharedPayload(payload) {
 }
 function resetAll() {
   if (!confirm('Reset this game and clear all picks? This cannot be undone.')) return;
+  cupView = null; cupActor = null;
   if (state.gameId) {
     deleteGame(state.gameId);
   } else {
@@ -1216,8 +1284,19 @@ function parseScore(v) {
 
 // ---------- ROUTING ----------
 const routes = ['home','setup','draft','scoreboard'];
+// Team-cup navigation is explicit (no snake-draft "phase" to derive from): cupView is the
+// active cup screen; cupActor is which participant THIS device is picking for (fixed to
+// roomRole in a shared room).
+let cupView = null;   // 'setup' | 'hub' | 'scoreboard' | null (derive from readiness)
+let cupActor = null;  // participant id currently making picks on this device
 function currentRoute() {
   if (!state.tournamentId)       return 'home';
+  if (state.mode === 'teamcup') {
+    if (cupView === 'setup')      return 'cupsetup';
+    if (cupView === 'scoreboard') return 'cupscore';
+    if (cupView === 'hub')        return 'cuphub';
+    return cupReady() ? 'cuphub' : 'cupsetup';
+  }
   if (!state.draftOrder.length)  return 'setup';
   if (!draftComplete())          return 'draft';
   return 'scoreboard';
@@ -1229,12 +1308,16 @@ function render() {
   const r = currentRoute();
   const view =
     r === 'home'       ? renderHome() :
+    r === 'cupsetup'   ? renderCupSetup() :
+    r === 'cuphub'     ? renderCupHub() :
+    r === 'cupscore'   ? renderCupScoreboard() :
     r === 'setup'      ? renderSetup() :
     r === 'draft'      ? renderDraft() :
                          renderScoreboard();
   view.classList.add('fade-in');
   root.appendChild(view);
   syncRoomPolling();
+  syncCupPolling();
 }
 
 // ---------- HOME ----------
@@ -1282,7 +1365,70 @@ function renderHome() {
     grid.appendChild(card);
   });
   wrap.appendChild(grid);
+
+  // ----- Team Events (Ryder Cup / Presidents Cup) — independent of the majors year pills -----
+  wrap.appendChild(el('div',{class:'mt-10 mb-4'},
+    el('h2',{class:'font-serif text-2xl sm:text-3xl text-masters-800 font-extrabold'}, 'Team Events'),
+    el('p',{class:'text-gray-600 mt-1 text-sm'}, "Ryder Cup & Presidents Cup — predict every match's winner and margin. Pairings and live results sync from ESPN.")
+  ));
+  const cupGrid = el('div',{class:'grid grid-cols-1 md:grid-cols-2 gap-5'});
+  CUP_TYPES.forEach(ct => cupGrid.appendChild(renderCupCard(ct)));
+  wrap.appendChild(cupGrid);
+
   return wrap;
+}
+
+// A home-page card for one cup type, listing every saved game of that type (any year).
+function renderCupCard(cupType) {
+  const t = CUP_TEMPLATES[cupType];
+  const games = Object.values(listGames())
+    .filter(g => g.mode === 'teamcup' && g.cupType === cupType)
+    .sort((a,b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  return el('div',{class:'card p-5 relative overflow-hidden'},
+    el('div',{style:`position:absolute; top:0; bottom:0; left:0; width:6px; background:${t.color}`}),
+    el('div',{class:'ml-3'},
+      el('div',{class:'flex items-start justify-between gap-3 mb-4'},
+        el('div',{},
+          el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, `Team Match Play • ${t.total} pts`),
+          el('h3',{class:'font-serif text-2xl text-masters-800 mt-1'}, t.name),
+          el('div',{class:'text-sm text-gray-600 mt-1'}, `${t.teamA} vs ${t.teamB}`)
+        ),
+        el('button',{class:'btn btn-primary whitespace-nowrap', onclick:()=>startCup(cupType)}, '+ New Game')
+      ),
+      games.length
+        ? el('div',{class:'space-y-2'}, ...games.map(g => renderCupGameRow(g)))
+        : el('div',{class:'text-sm text-gray-500 italic'}, 'No games started')
+    )
+  );
+}
+
+function renderCupGameRow(g) {
+  const phase = cupPhase(g);
+  const st = cupStandings(g);
+  const scoreLabel = (phase !== 'Setup') ? `USA ${fmtPts(st.usa)}–${fmtPts(st.intl)}` : `${(g.participants||[]).length} picker${(g.participants||[]).length===1?'':'s'}`;
+  const pillStyle = phase === 'Complete'
+    ? 'background:#eaf1ec;color:#36503c;border-color:#b9cfc0'
+    : phase === 'In Progress' ? 'background:#fef3c7;color:#92400e;border-color:#fde68a' : '';
+  return el('div',{
+    class:'flex items-center justify-between gap-3 bg-gray-50 rounded-lg px-3 py-2 hover:bg-gray-100 cursor-pointer transition',
+    onclick:()=>{ if (loadGame(g.gameId)) render(); }
+  },
+    el('div',{class:'min-w-0'},
+      el('div',{class:'truncate text-sm font-medium text-gray-800'}, g.gameName || 'Cup game'),
+      el('div',{class:'text-xs text-gray-500'}, `${g.year} • ${scoreLabel}`)
+    ),
+    el('div',{class:'flex items-center gap-2 shrink-0'},
+      el('span',{class:'pill', style: pillStyle}, phase),
+      el('button',{
+        class:'btn btn-ghost', style:'padding:4px 10px', title:'Delete game',
+        onclick:(e)=>{
+          e.stopPropagation();
+          if (!confirm('Delete this cup game? This cannot be undone.')) return;
+          deleteGame(g.gameId); render(); toast('Game deleted.');
+        }
+      }, '✕')
+    )
+  );
 }
 
 function renderGameRow(g, t) {
@@ -2240,6 +2386,7 @@ function roomFieldFull() {
 }
 // Room docs carry the draft, NOT live scores — each device syncs ESPN locally after the draft.
 function serializeRoomDoc(rev, by) {
+  if (state.mode === 'teamcup') return serializeCupRoomDoc(rev, by);
   return {
     v: 1, seedVersion: SEED_VERSION,
     tournamentId: state.tournamentId, year: state.year, gameName: state.gameName,
@@ -2256,6 +2403,7 @@ function serializeRoomDoc(rev, by) {
 // always resolve. Never touches roomId / roomMode / roomRole (set by the caller).
 function applyRoomDoc(doc) {
   if (!doc) return;
+  if (doc.mode === 'teamcup' || doc.cupType) return applyCupRoomDoc(doc);
   const byId = new Map();
   (SEED_FIELD || []).forEach(p => byId.set(p.id, p));
   (doc.field || []).forEach(p => byId.set(p.id, p));
@@ -2292,6 +2440,17 @@ function roomLink(roomId, asUserId) {
 // Host turns the in-progress draft into a shared room. Returns the roomId (or null).
 async function createRoom() {
   if (!ROOM_ENABLED) { toast('Add your Firebase DB URL in index.html to enable shared rooms.'); return null; }
+  if (state.mode === 'teamcup') {
+    if (!cupReady()) { toast('Finish setup (teams, participants, sessions) first.'); return null; }
+    if (state.roomMode && state.roomId) return state.roomId;
+    const roomId = 'rm' + Math.random().toString(36).slice(2, 8);
+    state.roomId = roomId; state.roomMode = true; state.roomRev = 1;
+    if (!state.roomRole) state.roomRole = state.hostId || state.participants[0]?.id || null;
+    state.hostId = state.hostId || state.roomRole;   // whoever opens the room is the commissioner
+    try { await roomPut(roomId, serializeCupRoomDoc(1, state.roomRole)); }
+    catch (e) { state.roomMode = false; state.roomId = null; state.roomRev = 0; persist(); toast('Could not create the room: ' + e.message); return null; }
+    persist(); return roomId;
+  }
   if (!state.draftOrder.length) { toast('Start the snake draft first, then open the shared room.'); return null; }
   if (state.roomMode && state.roomId) return state.roomId;  // already a room
   const roomId = 'rm' + Math.random().toString(36).slice(2, 8);
@@ -2316,6 +2475,18 @@ async function joinRoom(roomId, asUserId) {
   let doc;
   try { doc = await roomGet(roomId); } catch (e) { toast('Could not load that room: ' + e.message); return false; }
   if (!doc) { toast('That draft room was not found.'); return false; }
+  if (doc.mode === 'teamcup' || doc.cupType) {
+    const roomGameId = 'gc_room_' + roomId;
+    state = { ...DEFAULT_STATE(), mode:'teamcup', gameId:roomGameId, cupType:doc.cupType, tournamentId:doc.cupType };
+    state.roomId = roomId; state.roomMode = true;
+    state.roomRole = asUserId || doc.hostId || doc.participants?.[0]?.id || null;
+    applyCupRoomDoc(doc); normalizeCupGame(state);
+    cupActor = state.roomRole; cupView = 'hub';
+    persist(); render();
+    const me = (state.participants || []).find(p => p.id === state.roomRole);
+    toast(me ? `Joined as ${me.name}.` : 'Joined cup room.');
+    return true;
+  }
   // The room is always its own game entry — never overwrite whatever game the joiner had
   // open. Reset locally-synced scores only when switching IN from a different game.
   const roomGameId = 'g_room_' + roomId;
@@ -2361,6 +2532,7 @@ async function roomPollOnce() {
   if ((doc.rev || 0) > (state.roomRev || 0)) {
     applyRoomDoc(doc);
     render();
+    if (state.mode === 'teamcup') return;  // cups have no "on the clock" turn
     const picker = currentPicker();
     if (picker && picker.id === state.roomRole && !draftComplete()) {
       toast(`Your turn — ${picker.name} is on the clock.`);
@@ -2369,8 +2541,9 @@ async function roomPollOnce() {
   }
 }
 function syncRoomPolling() {
-  const shouldPoll = ROOM_ENABLED && state.roomMode && state.roomId
-    && currentRoute() !== 'home' && !draftComplete();
+  const inGame = currentRoute() !== 'home';
+  const activeForMode = state.mode === 'teamcup' ? true : !draftComplete();
+  const shouldPoll = ROOM_ENABLED && state.roomMode && state.roomId && inGame && activeForMode;
   if (shouldPoll && !roomPollTimer) {
     roomPollTimer = setInterval(roomPollOnce, ROOM_POLL_MS);
   } else if (!shouldPoll && roomPollTimer) {
@@ -2389,15 +2562,16 @@ function parseRoomHash(h) {
 async function chooseIdentityAndJoin(roomId) {
   let doc;
   try { doc = await roomGet(roomId); } catch (e) { toast('Could not load that room.'); return; }
-  if (!doc || !(doc.users || []).length) { toast('That draft room was not found.'); return; }
+  const people = (doc && (doc.users || doc.participants)) || [];
+  if (!people.length) { toast('That room was not found.'); return; }
   const overlay = el('div',{class:'fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'});
   const card = el('div',{class:'bg-white rounded-xl max-w-md w-full shadow-2xl overflow-hidden'},
     el('div',{class:'px-6 py-4 border-b border-gray-200'},
       el('h3',{class:'font-serif text-2xl text-masters-800 font-bold'},'Who are you?'),
-      el('div',{class:'text-sm text-gray-600 mt-1'}, `Joining ${doc.gameName || 'the draft'} — tap your name.`)
+      el('div',{class:'text-sm text-gray-600 mt-1'}, `Joining ${doc.gameName || 'the game'} — tap your name.`)
     ),
     el('div',{class:'p-6 flex flex-col gap-2'},
-      ...doc.users.map(u => el('button',{class:'btn btn-primary w-full', onclick:()=>{ overlay.remove(); joinRoom(roomId, u.id).then(()=>history.replaceState(null,'',location.pathname+location.search)); }}, u.name))
+      ...people.map(u => el('button',{class:'btn btn-primary w-full', onclick:()=>{ overlay.remove(); joinRoom(roomId, u.id).then(()=>history.replaceState(null,'',location.pathname+location.search)); }}, u.name))
     )
   );
   overlay.appendChild(card);
@@ -2434,19 +2608,19 @@ async function openRoomModal() {
   overlay.addEventListener('click',(e)=>{ if (e.target === overlay) overlay.remove(); });
   document.addEventListener('keydown', function esc(e){ if (e.key==='Escape'){ overlay.remove(); document.removeEventListener('keydown', esc); } });
 
-  const meName = (state.users.find(u=>u.id===state.roomRole)||{}).name || '—';
-  const others = state.users.filter(u => u.id !== state.roomRole);
-  const t = tournamentFor(state.tournamentId);
+  const people = state.mode === 'teamcup' ? state.participants : state.users;
+  const eventLabel = state.mode === 'teamcup' ? CUP_TEMPLATES[state.cupType].shortName : (tournamentFor(state.tournamentId)?.shortName || '');
+  const others = people.filter(u => u.id !== state.roomRole);
 
-  // Let the host correct which player THEY are (if they aren't player 1).
+  // Let the host correct which player/participant THEY are.
   const roleSel = el('select',{class:'border border-gray-300 rounded px-2 py-1 text-sm',
     onchange:(e)=>{ state.roomRole = e.target.value; persist(); overlay.remove(); openRoomModal(); }},
-    ...state.users.map(u => el('option',{value:u.id, ...(u.id===state.roomRole?{selected:'selected'}:{})}, u.name)));
+    ...people.map(u => el('option',{value:u.id, ...(u.id===state.roomRole?{selected:'selected'}:{})}, u.name)));
 
   const linkRow = (u) => {
     const link = roomLink(state.roomId, u.id);
     const input = el('input',{class:'flex-1 min-w-0 border border-gray-300 rounded px-2 py-1 font-mono text-xs', readonly:'readonly', value:link, onclick:(e)=>e.target.select()});
-    const body = encodeURIComponent(`You're invited to draft our ${t?.shortName || ''} Pick'em. Open this link to make your picks:\n${link}`);
+    const body = encodeURIComponent(`You're invited to our ${eventLabel} Pick'em. Open this link to make your picks:\n${link}`);
     return el('div',{class:'border border-gray-200 rounded-lg p-3'},
       el('div',{class:'flex items-center justify-between mb-2'},
         el('div',{class:'font-serif text-lg text-masters-800'}, `Link for ${u.name}`),
@@ -2484,12 +2658,503 @@ async function openRoomModal() {
   document.body.appendChild(overlay);
 }
 
+/* =====================================================================
+   TEAM CUP MODE — Ryder Cup / Presidents Cup
+   Parallel to the Majors snake-draft: fixed teams, session pairings,
+   participants predict winner+margin, ESPN auto-sync + manual fallback.
+   ===================================================================== */
+
+// ---------- cup lifecycle ----------
+function startCup(cupType) {
+  const t = CUP_TEMPLATES[cupType];
+  const g = {
+    ...DEFAULT_STATE(), mode:'teamcup', cupType, tournamentId:cupType, year:t.defaultYear,
+    espnEventId:null, syncSource:'auto',
+    teams:{ usa:{key:'usa',name:t.teamA,players:[]}, intl:{key:'intl',name:t.teamB,players:[]} },
+    participants:[], sessions:[], predictions:{}, scoring:{winner:1,margin:1}, hostId:null, lastFeedAt:null
+  };
+  const n = Object.values(listGames()).filter(x => x.mode==='teamcup' && x.cupType===cupType && x.year===t.defaultYear).length + 1;
+  g.gameId = uid('gc'); g.gameName = `${t.shortName} Game ${n}`; g.createdAt = new Date().toISOString();
+  state = g; cupView = 'setup'; cupActor = null;
+  persist(); render();
+  loadCupFeed({ silent:true });  // pre-load pairings/rosters if a feed already exists (no-op otherwise)
+}
+function normalizeCupGame(s) {
+  s.mode = 'teamcup';
+  if (!s.cupType) s.cupType = 'ryder';
+  s.tournamentId = s.cupType;
+  const t = CUP_TEMPLATES[s.cupType];
+  s.teams = s.teams || {};
+  s.teams.usa  = s.teams.usa  || { key:'usa',  name:t.teamA, players:[] };
+  s.teams.intl = s.teams.intl || { key:'intl', name:t.teamB, players:[] };
+  s.teams.usa.players  = s.teams.usa.players  || [];
+  s.teams.intl.players = s.teams.intl.players || [];
+  s.participants = s.participants || [];
+  s.sessions     = s.sessions || [];
+  s.predictions  = s.predictions || {};
+  s.scoring      = s.scoring || { winner:1, margin:1 };
+  if (!('syncSource' in s)) s.syncSource = 'auto';
+  if (!('espnEventId' in s)) s.espnEventId = null;
+  if (!s.hostId) s.hostId = s.participants[0]?.id || null;
+}
+function cupReady(s = state) {
+  return !!(s && s.mode==='teamcup'
+    && s.teams?.usa?.players?.filter(p=>p.name).length
+    && s.teams?.intl?.players?.filter(p=>p.name).length
+    && s.participants?.filter(p=>p.name).length
+    && s.sessions?.length);
+}
+function buildCupSessions() {
+  const t = CUP_TEMPLATES[state.cupType]; let order = 0;
+  state.sessions = t.sessions.map(sk => ({
+    id:uid('s'), espnId:null, day:sk.day, order:++order, type:sk.type, name:sk.name, status:'draft', source:'auto',
+    matches: Array.from({length:sk.count}, () => ({
+      id:uid('m'), espnId:null, teamA:[], teamB:[], result:{winner:null,margin:null}, status:'scheduled', source:'auto'
+    }))
+  }));
+  persist(); if (state.roomMode) pushRoom();
+}
+function isCupHost() { return state.mode==='teamcup' && (!state.roomMode || state.roomRole===state.hostId); }
+function activeActor() { return state.roomMode ? state.roomRole : cupActor; }
+
+// ---------- cup editors (setup + host) ----------
+function setTeamName(k,v){ state.teams[k].name=v; persist(); if(state.roomMode)pushRoom(); }
+function addCupPlayer(k){ const team=state.teams[k]; if(team.players.length>=12) return; team.players.push({id:uid('pl'),name:''}); persist(); render(); }
+function setCupPlayerName(k,pid,v){ const p=state.teams[k].players.find(x=>x.id===pid); if(p)p.name=v; persist(); if(state.roomMode)pushRoom(); }
+function removeCupPlayer(k,pid){ const team=state.teams[k]; team.players=team.players.filter(x=>x.id!==pid); persist(); render(); if(state.roomMode)pushRoom(); }
+function addParticipant(){ state.participants.push({id:uid('pt'),name:''}); if(!state.hostId)state.hostId=state.participants[0].id; persist(); render(); }
+function setParticipantName(pid,v){ const p=state.participants.find(x=>x.id===pid); if(p)p.name=v; persist(); if(state.roomMode)pushRoom(); }
+function removeParticipant(pid){ state.participants=state.participants.filter(x=>x.id!==pid); if(state.hostId===pid)state.hostId=state.participants[0]?.id||null; delete state.predictions[pid]; persist(); render(); if(state.roomMode)pushRoom(); }
+
+function playersUsedInSession(session, teamKey, exceptMatchId){
+  const used=new Set();
+  session.matches.forEach(m=>{ if(m.id===exceptMatchId) return; (teamKey==='usa'?m.teamA:m.teamB).filter(Boolean).forEach(id=>used.add(id)); });
+  return used;
+}
+function setPairing(sid,mid,teamKey,slotIdx,val){
+  const s=state.sessions.find(x=>x.id===sid); const m=s.matches.find(x=>x.id===mid);
+  const need=PLAYERS_PER_MATCH[s.type];
+  const arr=(teamKey==='usa'?m.teamA:m.teamB).slice();
+  while(arr.length<need) arr.push('');
+  arr[slotIdx]=val||'';
+  if(teamKey==='usa') m.teamA=arr; else m.teamB=arr;
+  m.source='manual';  // host edit pins it against ESPN overwrite
+  persist(); render(); if(state.roomMode)pushRoom();
+}
+function setResult(sid,mid,patch){
+  const s=state.sessions.find(x=>x.id===sid); const m=s.matches.find(x=>x.id===mid);
+  m.result={...m.result,...patch};
+  if(patch.winner==='tie') m.result.margin='Halved';
+  m.source='manual';
+  if(m.result.winner && m.status!=='final') m.status='final';  // recording a result implies the match is done
+  recomputeSessionStatus(s);
+  persist(); render(); if(state.roomMode)pushRoom();
+}
+function setMatchStatus(sid,mid,status){
+  const s=state.sessions.find(x=>x.id===sid); const m=s.matches.find(x=>x.id===mid);
+  m.status=status; m.source='manual'; recomputeSessionStatus(s);
+  persist(); render(); if(state.roomMode)pushRoom();
+}
+function setSessionStatus(sid,status){ const s=state.sessions.find(x=>x.id===sid); s.status=status; persist(); render(); if(state.roomMode)pushRoom(); }
+function toggleSessionManual(sid){ const s=state.sessions.find(x=>x.id===sid); s.source = s.source==='manual'?'auto':'manual'; persist(); render(); if(state.roomMode)pushRoom(); }
+function recomputeSessionStatus(s){
+  const sts=new Set(s.matches.map(m=>m.status));
+  if(sts.size && [...sts].every(x=>x==='final')) s.status='final';
+  else if((sts.has('inprogress')||sts.has('final')) && s.status==='draft') s.status='inprogress';
+}
+function setPrediction(pid,mid,patch){
+  if(!pid) return;
+  state.predictions[pid]=state.predictions[pid]||{};
+  const cur=state.predictions[pid][mid]||{winner:null,margin:null};
+  const next={...cur,...patch};
+  if(patch.winner==='tie') next.margin='Halved';
+  state.predictions[pid][mid]=next;
+  persist(); render(); if(state.roomMode)pushRoom();
+}
+
+// ---------- cup scoring / standings ----------
+function allCupMatches(g=state){ const out=[]; (g.sessions||[]).forEach(s=>(s.matches||[]).forEach(m=>out.push({session:s,match:m}))); return out; }
+function fmtPts(n){ n=Number(n)||0; const w=Math.floor(n); const half=(n-w)>=0.5; return `${w}${half?'½':''}`; }
+function playerName(k,id){ const p=(state.teams[k].players||[]).find(x=>x.id===id); return p?p.name:'—'; }
+function sessionLocked(s){ return s.status!=='draft'; }
+function cupStandings(g=state){
+  let usa=0,intl=0,done=0; const created=allCupMatches(g);
+  created.forEach(({match})=>{
+    if(match.status==='final' && match.result && match.result.winner){
+      done++;
+      if(match.result.winner==='usa')usa+=1; else if(match.result.winner==='intl')intl+=1; else {usa+=0.5;intl+=0.5;}
+    }
+  });
+  const total=CUP_TEMPLATES[g.cupType]?.total || created.length;
+  return {usa,intl,done,created:created.length,total};
+}
+function anyPrediction(g){ return Object.values(g.predictions||{}).some(mp=>Object.values(mp||{}).some(p=>p&&p.winner)); }
+function anyPairing(g){ return allCupMatches(g).some(({match})=>(match.teamA||[]).filter(Boolean).length||(match.teamB||[]).filter(Boolean).length); }
+function cupPhase(g){
+  if(!g.sessions?.length || !(g.teams?.usa?.players?.filter(p=>p.name).length)) return 'Setup';
+  const st=cupStandings(g);
+  if(st.created && st.done>=st.created && st.created>=st.total) return 'Complete';
+  if(st.done>0 || anyPrediction(g) || anyPairing(g)) return 'In Progress';
+  return 'Setup';
+}
+function pickCorrect(m,p){ return !!(p && p.winner && m.result && p.winner===m.result.winner); }
+function pickPoints(m,p){ if(!pickCorrect(m,p))return 0; let pts=state.scoring.winner; if(m.result.winner!=='tie'&&p.margin&&normMargin(p.margin)===normMargin(m.result.margin))pts+=state.scoring.margin; return pts; }
+function predLabel(p){ const t=CUP_TEMPLATES[state.cupType]; if(!p||!p.winner)return '—'; if(p.winner==='tie')return 'Tie'; return `${p.winner==='usa'?'USA':t.teamB}${p.margin?' '+p.margin:''}`; }
+function scoreParticipant(g,pid){
+  const preds=(g.predictions||{})[pid]||{}; let points=0,correct=0,bonus=0,graded=0;
+  allCupMatches(g).forEach(({match})=>{
+    if(match.status!=='final'||!match.result||!match.result.winner) return;
+    const p=preds[match.id]; if(!p||!p.winner) return; graded++;
+    if(p.winner===match.result.winner){ points+=g.scoring.winner; correct++;
+      if(match.result.winner!=='tie' && p.margin && normMargin(p.margin)===normMargin(match.result.margin)){ points+=g.scoring.margin; bonus++; }
+    }
+  });
+  return {points,correct,bonus,graded};
+}
+function cupLeaderboard(g=state){
+  return (g.participants||[]).map(p=>({p,...scoreParticipant(g,p.id)}))
+    .sort((a,b)=> b.points-a.points || b.correct-a.correct || b.bonus-a.bonus || (a.p.name||'').localeCompare(b.p.name||''));
+}
+function cupClinch(){
+  const t=CUP_TEMPLATES[state.cupType]; const st=cupStandings(); const avail=t.total-(st.usa+st.intl);
+  const usName=state.teams.usa.name, oppName=state.teams.intl.name; const r={decided:false,text:''};
+  if(st.usa>=t.toWin){ r.decided=true; r.text=`${usName} win the ${t.name}, ${fmtPts(st.usa)}–${fmtPts(st.intl)}.`; return r; }
+  if(st.intl>=t.toWin){ r.decided=true; r.text=`${oppName} win the ${t.name}, ${fmtPts(st.intl)}–${fmtPts(st.usa)}.`; return r; }
+  if(avail<=0 && st.done>0){ r.decided=true; r.text = t.retainOnTie ? `Tied ${fmtPts(st.usa)}–${fmtPts(st.intl)} — Cup retained by the holder.` : `Tied ${fmtPts(st.usa)}–${fmtPts(st.intl)} — Cup shared.`; return r; }
+  const lead = st.usa>st.intl?`${usName} lead`: st.intl>st.usa?`${oppName} lead`:'All square';
+  r.text = `${st.done} of ${t.total} matches complete • ${fmtPts(avail)} points still in play • ${lead}. ${fmtPts(t.toWin)} needed to win.`;
+  return r;
+}
+
+// ---------- ESPN feed merge ----------
+function ensureCupPlayer(teamKey,name){
+  const team=state.teams[teamKey]; const nn=normalizeName(name);
+  let p=team.players.find(x=>x.name && normalizeName(x.name)===nn);
+  if(!p){ p=team.players.find(x=>!x.name); if(p)p.name=name; else { p={id:uid('pl'),name}; team.players.push(p); } }
+  return p.id;
+}
+function mergeCupFeed(doc){
+  if(!doc || doc.cupType!==state.cupType) return false;
+  if(doc.eventId && !state.espnEventId) state.espnEventId=doc.eventId;
+  if(doc.teams){ if(!state.teams.usa.name && doc.teams.usa?.name)state.teams.usa.name=doc.teams.usa.name;
+                 if(!state.teams.intl.name && doc.teams.intl?.name)state.teams.intl.name=doc.teams.intl.name; }
+  const usedSess=new Set();
+  (doc.sessions||[]).forEach((fs,fi)=>{
+    let ss = state.sessions.find(s=>s.espnId && s.espnId===fs.name && !usedSess.has(s.id))
+          || state.sessions.find(s=>normalizeName(s.name)===normalizeName(fs.name) && !usedSess.has(s.id))
+          || state.sessions.find(s=>!s.espnId && s.type===fs.type && s.source!=='manual' && !usedSess.has(s.id));
+    if(!ss){ ss={id:uid('s'),espnId:fs.name,day:fs.day||(fi+1),order:state.sessions.length+1,type:fs.type,name:fs.name,status:'draft',source:'auto',matches:[]}; state.sessions.push(ss); }
+    usedSess.add(ss.id);
+    if(ss.source==='manual') return;               // pinned session — feed leaves it alone
+    if(!ss.espnId) ss.espnId=fs.name;
+    (fs.matches||[]).forEach(fm=>{
+      let mm = ss.matches.find(m=>m.espnId && m.espnId===fm.espnId)
+            || ss.matches.find(m=>!m.espnId && m.source!=='manual' && !(m.teamA||[]).filter(Boolean).length && !(m.teamB||[]).filter(Boolean).length);
+      if(!mm){ mm={id:uid('m'),espnId:null,teamA:[],teamB:[],result:{winner:null,margin:null},status:'scheduled',source:'auto'}; ss.matches.push(mm); }
+      if(mm.source==='manual') return;             // pinned match — keep host's version
+      mm.espnId = fm.espnId || mm.espnId;
+      mm.teamA = (fm.teamA||[]).map(n=>ensureCupPlayer('usa',n)).filter(Boolean);
+      mm.teamB = (fm.teamB||[]).map(n=>ensureCupPlayer('intl',n)).filter(Boolean);
+      mm.result = { winner:(fm.result&&fm.result.winner)||null, margin:(fm.result&&fm.result.margin)||null };
+      mm.status = fm.status || 'scheduled';
+    });
+    recomputeSessionStatus(ss);
+  });
+  state.lastFeedAt = doc.fetched_at || new Date().toISOString();
+  return true;
+}
+async function loadCupFeed({silent=false}={}){
+  if(state.mode!=='teamcup') return false;
+  if(state.syncSource==='manual'){ if(!silent)toast('Manual mode — ESPN sync is off for this game.'); return false; }
+  const url=`data/${state.year}/${state.cupType}.json`;
+  let doc;
+  try{ const r=await fetch(url,{cache:'no-cache'}); if(!r.ok){ if(!silent)toast('No ESPN feed available for this cup yet.'); return false; } doc=await r.json(); }
+  catch(e){ if(!silent)toast('ESPN feed load failed.'); return false; }
+  const ok=mergeCupFeed(doc);
+  if(ok){ persist(); if(state.roomMode)pushRoom(); render(); if(!silent)toast('Synced pairings & results from ESPN.'); }
+  return ok;
+}
+let cupFeedTimer=null;
+async function cupFeedPollOnce(){ if(state.mode!=='teamcup'||state.syncSource!=='auto')return; await loadCupFeed({silent:true}); }
+function syncCupPolling(){
+  const r=currentRoute();
+  const on = state.mode==='teamcup' && state.syncSource==='auto' && (r==='cuphub'||r==='cupscore');
+  if(on && !cupFeedTimer) cupFeedTimer=setInterval(cupFeedPollOnce, 60000);
+  else if(!on && cupFeedTimer){ clearInterval(cupFeedTimer); cupFeedTimer=null; }
+}
+
+// ---------- cup room codec (branched from serializeRoomDoc/applyRoomDoc) ----------
+function serializeCupRoomDoc(rev, by){
+  return { v:1, mode:'teamcup', cupType:state.cupType, year:state.year, gameName:state.gameName,
+    espnEventId:state.espnEventId, syncSource:state.syncSource, hostId:state.hostId,
+    teams:state.teams, participants:state.participants, sessions:state.sessions,
+    predictions:state.predictions, scoring:state.scoring,
+    rev, updatedAt:new Date().toISOString(), lastBy:by||null };
+}
+function applyCupRoomDoc(doc){
+  if(!doc) return;
+  state.mode='teamcup'; state.cupType=doc.cupType||state.cupType; state.tournamentId=state.cupType;
+  state.year=doc.year??state.year; state.gameName=doc.gameName||state.gameName;
+  state.espnEventId=doc.espnEventId??state.espnEventId; state.syncSource=doc.syncSource||state.syncSource;
+  state.hostId=doc.hostId||state.hostId;
+  state.teams=doc.teams||state.teams; state.participants=doc.participants||state.participants;
+  state.sessions=doc.sessions||state.sessions; state.scoring=doc.scoring||state.scoring;
+  // Union predictions per participant: THIS device is authoritative for its own actor's picks;
+  // the remote wins for everyone else. Keeps two people picking at once from clobbering each other.
+  const actor=state.roomRole; const merged={...(doc.predictions||{})};
+  for(const [pid,mp] of Object.entries(state.predictions||{})){
+    merged[pid] = pid===actor ? {...(merged[pid]||{}),...(mp||{})} : {...(mp||{}),...(merged[pid]||{})};
+  }
+  state.predictions=merged; state.roomRev=doc.rev||0; persist();
+}
+
+// ---------- cup views ----------
+function cupSubnav(active){
+  const t=CUP_TEMPLATES[state.cupType];
+  const btn=(key,label,disabled)=>el('button',{class:'btn '+(active===key?'btn-primary':'btn-ghost'), disabled:!!disabled, onclick:()=>{cupView=key;render();}}, label);
+  return el('div',{class:'flex flex-wrap items-end justify-between gap-3 mb-6'},
+    el('div',{},
+      el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, `${t.name} • ${state.year}`),
+      el('h2',{class:'font-serif text-3xl text-masters-800 font-extrabold'}, state.gameName||t.name)
+    ),
+    el('div',{class:'flex gap-2'}, btn('setup','Setup'), btn('hub','Matches & Picks',!cupReady()), btn('scoreboard','Scoreboard',!cupReady()))
+  );
+}
+function teamEditor(teamKey){
+  const t=CUP_TEMPLATES[state.cupType]; const team=state.teams[teamKey]; const color=t.teamColors[teamKey];
+  return el('div',{class:'card p-4'},
+    el('div',{class:'flex items-center gap-2 mb-3'},
+      el('span',{style:`display:inline-block;width:12px;height:12px;border-radius:3px;background:${color}`}),
+      el('input',{type:'text', value:team.name, onchange:(e)=>setTeamName(teamKey,e.target.value)})
+    ),
+    el('div',{class:'space-y-2'}, ...team.players.map((p,i)=>el('div',{class:'flex items-center gap-2'},
+      el('span',{class:'text-xs text-gray-400 w-5 text-right'}, String(i+1)),
+      el('input',{type:'text', value:p.name, placeholder:`Player ${i+1}`, onchange:(e)=>setCupPlayerName(teamKey,p.id,e.target.value)}),
+      el('button',{class:'btn btn-ghost', style:'padding:4px 10px', onclick:()=>removeCupPlayer(teamKey,p.id)},'✕')
+    ))),
+    el('div',{class:'mt-3 flex items-center gap-2'},
+      el('button',{class:'btn btn-ghost', disabled:team.players.length>=12, onclick:()=>addCupPlayer(teamKey)}, '+ Add player'),
+      el('span',{class:'text-xs text-gray-500'}, `${team.players.filter(p=>p.name).length}/12`)
+    )
+  );
+}
+function renderCupSetup(){
+  const t=CUP_TEMPLATES[state.cupType]; const wrap=el('section'); wrap.appendChild(cupSubnav('setup'));
+  wrap.appendChild(el('div',{class:'card p-4 mb-5'},
+    el('h3',{class:'font-serif text-xl text-masters-800 mb-2'},'ESPN Auto-Sync'),
+    el('p',{class:'text-sm text-gray-600 mb-3'}, 'Pairings and live results sync automatically from ESPN. Switch to Manual to run it entirely by hand. Editing any pairing or result later pins it (📌) so the feed won’t overwrite you.'),
+    el('div',{class:'flex flex-wrap items-center gap-4'},
+      el('label',{class:'flex items-center gap-2 text-sm'}, el('input',{type:'radio', name:'syncsrc', ...(state.syncSource==='auto'?{checked:'checked'}:{}), onchange:()=>{state.syncSource='auto';persist();render();}}), 'Auto (ESPN)'),
+      el('label',{class:'flex items-center gap-2 text-sm'}, el('input',{type:'radio', name:'syncsrc', ...(state.syncSource==='manual'?{checked:'checked'}:{}), onchange:()=>{state.syncSource='manual';persist();render();}}), 'Manual only'),
+      el('div',{class:'flex items-center gap-2'}, el('span',{class:'text-sm text-gray-600'},'Event ID:'), el('input',{type:'text', style:'max-width:160px', value:state.espnEventId||'', placeholder:'auto-discover', onchange:(e)=>{state.espnEventId=e.target.value.trim()||null;persist();}})),
+      el('button',{class:'btn btn-ghost', disabled:state.syncSource==='manual', onclick:()=>loadCupFeed({})}, '↻ Sync from ESPN now')
+    ),
+    state.lastFeedAt ? el('div',{class:'text-xs text-gray-500 mt-2'}, `Last synced ${new Date(state.lastFeedAt).toLocaleString()}`) : null
+  ));
+  wrap.appendChild(el('div',{class:'card p-4 mb-5 flex flex-wrap items-center gap-2'},
+    el('span',{class:'text-sm text-gray-600 mr-1'},'Year:'),
+    ...cupYears(state.cupType).map(y=>el('button',{class:'btn '+(y===state.year?'btn-primary':'btn-ghost'), onclick:()=>{state.year=y;persist();render();}}, String(y)))
+  ));
+  wrap.appendChild(el('div',{class:'grid grid-cols-1 md:grid-cols-2 gap-5 mb-5'}, teamEditor('usa'), teamEditor('intl')));
+  wrap.appendChild(el('div',{class:'card p-4 mb-5'},
+    el('h3',{class:'font-serif text-xl text-masters-800 mb-2'},'Participants (pickers)'),
+    el('div',{class:'space-y-2'},
+      ...state.participants.map((p,i)=>el('div',{class:'flex items-center gap-2'},
+        el('span',{class:'text-xs text-gray-400 w-5 text-right'}, String(i+1)),
+        el('input',{type:'text', value:p.name, placeholder:`Participant ${i+1}`, onchange:(e)=>setParticipantName(p.id,e.target.value)}),
+        el('label',{class:'flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap'}, el('input',{type:'radio', name:'hostpick', ...(state.hostId===p.id?{checked:'checked'}:{}), onchange:()=>{state.hostId=p.id;persist();render();}}), 'Host'),
+        el('button',{class:'btn btn-ghost', style:'padding:4px 10px', onclick:()=>removeParticipant(p.id)},'✕')
+      )),
+      state.participants.length?null:el('div',{class:'text-sm text-gray-500 italic'},'No participants yet')
+    ),
+    el('button',{class:'btn btn-ghost mt-3', onclick:addParticipant}, '+ Add participant')
+  ));
+  const nMatches=state.sessions.reduce((a,s)=>a+s.matches.length,0);
+  wrap.appendChild(el('div',{class:'card p-4 mb-5'},
+    el('h3',{class:'font-serif text-xl text-masters-800 mb-1'},'Sessions'),
+    el('p',{class:'text-sm text-gray-600 mb-3'}, `The ${t.name} is ${t.total} matches. Build the standard skeleton, then fill pairings in Matches & Picks — or let ESPN fill them.`),
+    state.sessions.length
+      ? el('div',{class:'space-y-1'}, ...state.sessions.map(s=>el('div',{class:'text-sm text-gray-700'}, `• ${s.name} — ${s.matches.length} × ${MATCH_TYPE_LABEL[s.type]}`)), el('div',{class:'text-xs text-gray-500 mt-1'}, `${nMatches} matches total`))
+      : el('div',{class:'text-sm text-gray-500 italic'},'Not built yet'),
+    el('button',{class:'btn btn-ghost mt-3', onclick:()=>{ if(state.sessions.length && !confirm('Rebuild sessions? This clears pairings and results. Picks are re-linked where matches survive.')) return; buildCupSessions(); render(); }}, state.sessions.length?'Rebuild standard sessions':'Build standard sessions')
+  ));
+  wrap.appendChild(el('div',{class:'flex justify-end'},
+    el('button',{class:'btn btn-primary', disabled:!cupReady(), onclick:()=>{cupView='hub';render();}}, 'Enter Matches & Picks →')));
+  if(!cupReady()) wrap.appendChild(el('div',{class:'text-xs text-gray-500 text-right mt-2'},'Add ≥1 named player to each team, ≥1 participant, and build sessions to continue.'));
+  return wrap;
+}
+function winnerSelect(curWinner, onchange, disabled){
+  const t=CUP_TEMPLATES[state.cupType];
+  return el('select',{style:'width:auto;min-width:90px', disabled:!!disabled, onchange:(e)=>onchange(e.target.value||null)},
+    el('option',{value:''},'— pick —'),
+    el('option',{value:'usa', ...(curWinner==='usa'?{selected:'selected'}:{})}, 'USA'),
+    el('option',{value:'intl', ...(curWinner==='intl'?{selected:'selected'}:{})}, t.teamB),
+    el('option',{value:'tie', ...(curWinner==='tie'?{selected:'selected'}:{})}, 'Tie (halved)')
+  );
+}
+function marginSelect(curMargin, curWinner, onchange, disabled){
+  const dis = disabled || curWinner==='tie' || !curWinner;
+  return el('select',{style:'width:auto;min-width:80px', disabled:dis, onchange:(e)=>onchange(e.target.value||null)},
+    el('option',{value:''}, curWinner==='tie'?'Halved':'— margin —'),
+    ...MARGIN_OPTIONS.map(m=>el('option',{value:m, ...(normMargin(curMargin)===normMargin(m)?{selected:'selected'}:{})}, m))
+  );
+}
+function pairingSelect(session, match, teamKey, slotIdx){
+  const team=state.teams[teamKey]; const used=playersUsedInSession(session,teamKey,match.id);
+  const cur=(teamKey==='usa'?match.teamA:match.teamB).filter(Boolean)[slotIdx]||'';
+  return el('select',{style:'width:auto;min-width:110px', disabled:match.status==='final', onchange:(e)=>setPairing(session.id,match.id,teamKey,slotIdx,e.target.value)},
+    el('option',{value:''},'—'),
+    ...team.players.filter(p=>p.name && (p.id===cur || !used.has(p.id))).map(p=>el('option',{value:p.id, ...(p.id===cur?{selected:'selected'}:{})}, p.name))
+  );
+}
+function renderCupHub(){
+  const t=CUP_TEMPLATES[state.cupType]; const wrap=el('section'); wrap.appendChild(cupSubnav('hub'));
+  const host=isCupHost(); const actor=activeActor();
+  wrap.appendChild(el('div',{class:'card p-4 mb-5 flex flex-wrap items-center justify-between gap-3'},
+    el('div',{class:'flex items-center gap-2'},
+      el('span',{class:'text-sm text-gray-600'}, state.roomMode?'You are picking as:':'Picking as:'),
+      state.roomMode
+        ? el('span',{class:'pill pill-green'}, (state.participants.find(p=>p.id===actor)||{}).name||'—')
+        : el('select',{style:'width:auto;min-width:140px', onchange:(e)=>{cupActor=e.target.value;render();}}, ...state.participants.map(p=>el('option',{value:p.id, ...(p.id===actor?{selected:'selected'}:{})}, p.name)))
+    ),
+    el('div',{class:'flex items-center gap-2'},
+      host?el('span',{class:'pill'},'Host controls'):null,
+      ROOM_ENABLED?el('button',{class:'btn btn-ghost', onclick:openRoomModal}, state.roomMode?'📲 Room Links':'📲 Shared Room'):null,
+      el('button',{class:'btn btn-ghost', disabled:state.syncSource==='manual', onclick:()=>loadCupFeed({})}, '↻ Sync ESPN')
+    )
+  ));
+  state.sessions.forEach(s=>wrap.appendChild(hubSessionCard(s,host,actor)));
+  return wrap;
+}
+function hubSessionCard(s, host, actor){
+  const statusPill = s.status==='final'?el('span',{class:'pill pill-green'},'Final')
+    : s.status==='inprogress'?el('span',{class:'pill', style:'background:#fef3c7;color:#92400e;border-color:#fde68a'},'In Progress • picks locked')
+    : el('span',{class:'pill'},'Open for picks');
+  const controls = host? el('div',{class:'flex flex-wrap items-center gap-2 mt-1'},
+    el('span',{class:'text-xs text-gray-500'},'Session:'),
+    ...['draft','inprogress','final'].map(st=>el('button',{class:'btn '+(s.status===st?'btn-primary':'btn-ghost'), style:'padding:3px 9px;font-size:12px', onclick:()=>setSessionStatus(s.id,st)}, st==='draft'?'Open':st==='inprogress'?'Lock':'Final')),
+    el('label',{class:'flex items-center gap-1 text-xs text-gray-500 ml-2'}, el('input',{type:'checkbox', ...(s.source==='manual'?{checked:'checked'}:{}), onchange:()=>toggleSessionManual(s.id)}), 'Ignore ESPN')
+  ):null;
+  const card=el('div',{class:'card p-4 mb-4'},
+    el('div',{class:'flex flex-wrap items-center justify-between gap-2'},
+      el('div',{}, el('h3',{class:'font-serif text-xl text-masters-800'}, s.name), el('div',{class:'text-xs text-gray-500'}, `${s.matches.length} × ${MATCH_TYPE_LABEL[s.type]}`)),
+      statusPill
+    ),
+    controls
+  );
+  s.matches.forEach((m,i)=>card.appendChild(hubMatchRow(s,m,i,host,actor)));
+  return card;
+}
+function hubMatchRow(s,m,i,host,actor){
+  const t=CUP_TEMPLATES[state.cupType]; const need=PLAYERS_PER_MATCH[s.type];
+  const locked=sessionLocked(s); const final=m.status==='final'&&m.result&&m.result.winner;
+  const teamPairing=(teamKey)=>{
+    if(host && m.status!=='final'){ const slots=[]; for(let k=0;k<need;k++) slots.push(pairingSelect(s,m,teamKey,k)); return el('div',{class:'flex gap-1 flex-wrap'},...slots); }
+    const names=(teamKey==='usa'?m.teamA:m.teamB).filter(Boolean).map(id=>playerName(teamKey,id));
+    return el('span',{class:'text-sm', style:`color:${t.teamColors[teamKey]};font-weight:600`}, names.length?names.join(' / '):'TBD');
+  };
+  const pairing=el('div',{class:'flex items-center gap-2 flex-wrap'}, teamPairing('usa'), el('span',{class:'text-xs text-gray-400'},'vs'), teamPairing('intl'));
+  const resultBadge = final
+    ? el('span',{class:'pill pill-green'}, m.result.winner==='tie'?'Halved':`${m.result.winner==='usa'?'USA':t.teamB} ${m.result.margin||''}`)
+    : m.status==='inprogress'? el('span',{class:'pill', style:'background:#fef3c7;color:#92400e;border-color:#fde68a'},'In progress') : null;
+  const pred = actor ? ((state.predictions[actor]||{})[m.id]||{}) : {};
+  let pickArea;
+  if(!actor){ pickArea=el('span',{class:'text-xs text-gray-400'},'—'); }
+  else if(locked){
+    pickArea = pred.winner
+      ? el('span',{class:'text-xs '+(final?(pickCorrect(m,pred)?'text-green-700 font-semibold':'text-red-600'):'text-gray-600')}, `Your pick: ${predLabel(pred)}${final?(pickCorrect(m,pred)?` ✓ +${pickPoints(m,pred)}`:' ✗'):''}`)
+      : el('span',{class:'text-xs text-gray-400'}, final?'No pick':'Locked — no pick');
+  } else {
+    pickArea = el('div',{class:'flex items-center gap-1 flex-wrap'},
+      el('span',{class:'text-xs text-gray-500'},'Your pick:'),
+      winnerSelect(pred.winner, (v)=>setPrediction(actor,m.id,{winner:v}), false),
+      marginSelect(pred.margin, pred.winner, (v)=>setPrediction(actor,m.id,{margin:v}), false)
+    );
+  }
+  let resultEditor=null;
+  if(host){
+    resultEditor=el('div',{class:'flex items-center gap-1 flex-wrap'},
+      el('span',{class:'text-xs text-gray-400'},'Result:'),
+      winnerSelect(m.result.winner, (v)=>setResult(s.id,m.id,{winner:v}), false),
+      marginSelect(m.result.margin, m.result.winner, (v)=>setResult(s.id,m.id,{margin:v}), false),
+      el('select',{style:'width:auto;min-width:110px', onchange:(e)=>setMatchStatus(s.id,m.id,e.target.value)}, ...['scheduled','inprogress','final'].map(st=>el('option',{value:st, ...(m.status===st?{selected:'selected'}:{})}, st==='scheduled'?'Scheduled':st==='inprogress'?'In progress':'Final'))),
+      m.source==='manual'?el('span',{class:'text-xs text-gray-400', title:'Pinned — ESPN will not overwrite'},'📌'):null
+    );
+  }
+  return el('div',{class:'border-t border-gray-100 py-2'},
+    el('div',{class:'flex flex-wrap items-center justify-between gap-2'},
+      el('div',{class:'flex items-center gap-2'}, el('span',{class:'text-xs text-gray-400 w-4'}, String(i+1)), pairing),
+      el('div',{class:'flex items-center gap-2 flex-wrap'}, resultBadge, pickArea)
+    ),
+    resultEditor?el('div',{class:'mt-2 pl-6'},resultEditor):null
+  );
+}
+function renderCupScoreboard(){
+  const t=CUP_TEMPLATES[state.cupType]; const wrap=el('section'); wrap.appendChild(cupSubnav('scoreboard'));
+  const st=cupStandings(); const clinch=cupClinch();
+  const teamScoreBlock=(k,pts)=>el('div',{class:'text-center flex-1'},
+    el('div',{class:'font-serif text-4xl sm:text-5xl font-extrabold', style:`color:${t.teamColors[k]}`}, fmtPts(pts)),
+    el('div',{class:'text-sm font-semibold text-gray-700 mt-1'}, k==='usa'?state.teams.usa.name:state.teams.intl.name));
+  const progressRow=(k,pts)=>{ const pct=Math.min(100,(pts/t.total)*100); const winPct=(t.toWin/t.total)*100;
+    return el('div',{class:'relative h-3 rounded bg-gray-100 overflow-hidden'},
+      el('div',{style:`position:absolute;left:0;top:0;bottom:0;width:${pct}%;background:${t.teamColors[k]}`}),
+      el('div',{style:`position:absolute;left:${winPct}%;top:0;bottom:0;width:2px;background:#111827`, title:`${fmtPts(t.toWin)} to win`})); };
+  wrap.appendChild(el('div',{class:'card p-5 mb-5'},
+    el('div',{class:'flex items-center justify-between gap-4 mb-4'}, teamScoreBlock('usa',st.usa),
+      el('div',{class:'text-center'}, el('div',{class:'text-xs uppercase tracking-wider text-gray-500'},'to win'), el('div',{class:'font-serif text-2xl text-masters-800'}, fmtPts(t.toWin))),
+      teamScoreBlock('intl',st.intl)),
+    el('div',{class:'space-y-1'}, progressRow('usa',st.usa), progressRow('intl',st.intl)),
+    el('div',{class:'text-center text-sm mt-3 '+(clinch.decided?'font-semibold text-masters-800':'text-gray-600')}, clinch.text)
+  ));
+  const lb=cupLeaderboard();
+  wrap.appendChild(el('div',{class:'card p-4 mb-5'},
+    el('h3',{class:'font-serif text-xl text-masters-800 mb-3'},'Pick’em Leaderboard'),
+    el('div',{class:'overflow-x-auto'}, el('table',{class:'w-full text-sm'},
+      el('thead',{}, el('tr',{class:'text-left text-gray-500 border-b border-gray-200'},
+        el('th',{class:'py-1 pr-3'},'#'), el('th',{class:'py-1 pr-3'},'Participant'), el('th',{class:'py-1 pr-3 text-right'},'Points'), el('th',{class:'py-1 pr-3 text-right'},'Correct'), el('th',{class:'py-1 text-right'},'Margin'))),
+      el('tbody',{}, ...(lb.length?lb:[]).map((r,i)=>el('tr',{class:'border-b border-gray-100'},
+        el('td',{class:'py-1 pr-3 text-gray-400'}, String(i+1)),
+        el('td',{class:'py-1 pr-3 font-medium'}, r.p.name||'—'),
+        el('td',{class:'py-1 pr-3 text-right font-semibold text-masters-800'}, String(r.points)),
+        el('td',{class:'py-1 pr-3 text-right'}, `${r.correct}/${r.graded}`),
+        el('td',{class:'py-1 text-right'}, String(r.bonus))
+      )))
+    ))
+  ));
+  const inProg=allCupMatches().filter(({match})=>match.status==='inprogress');
+  if(inProg.length){ const box=el('div',{class:'card p-4 mb-5'}, el('h3',{class:'font-serif text-xl text-masters-800 mb-2'},'In Progress')); inProg.forEach(({session,match})=>box.appendChild(scoreMatchLine(session,match))); wrap.appendChild(box); }
+  state.sessions.forEach(s=>{
+    const box=el('div',{class:'card p-4 mb-4'}, el('div',{class:'flex items-center justify-between mb-1'}, el('h3',{class:'font-serif text-lg text-masters-800'}, s.name), sessionStatusPill(s)));
+    s.matches.forEach(m=>box.appendChild(scoreMatchLine(s,m)));
+    wrap.appendChild(box);
+  });
+  wrap.appendChild(el('div',{class:'flex justify-end gap-2'},
+    ROOM_ENABLED?el('button',{class:'btn btn-ghost', onclick:openRoomModal}, state.roomMode?'📲 Room Links':'📲 Shared Room'):null,
+    el('button',{class:'btn btn-ghost', disabled:state.syncSource==='manual', onclick:()=>loadCupFeed({})}, '↻ Sync ESPN')));
+  return wrap;
+}
+function sessionStatusPill(s){ return s.status==='final'?el('span',{class:'pill pill-green'},'Final'): s.status==='inprogress'?el('span',{class:'pill', style:'background:#fef3c7;color:#92400e;border-color:#fde68a'},'In Progress'):el('span',{class:'pill'},'Scheduled'); }
+function scoreMatchLine(s,m){
+  const t=CUP_TEMPLATES[state.cupType];
+  const usaNames=(m.teamA||[]).filter(Boolean).map(id=>playerName('usa',id)).join(' / ')||'TBD';
+  const intlNames=(m.teamB||[]).filter(Boolean).map(id=>playerName('intl',id)).join(' / ')||'TBD';
+  const final=m.status==='final'&&m.result&&m.result.winner;
+  const badge = final ? (m.result.winner==='tie'? el('span',{class:'pill'},'Halved') : el('span',{class:'pill pill-green'}, `${m.result.winner==='usa'?'USA':t.teamB} ${m.result.margin||''}`))
+    : m.status==='inprogress'? el('span',{class:'pill', style:'background:#fef3c7;color:#92400e;border-color:#fde68a'},'In progress') : el('span',{class:'text-xs text-gray-400'},'—');
+  const wStyle=(side)=> final ? (m.result.winner===side?'font-weight:700':'color:#9ca3af') : '';
+  return el('div',{class:'flex items-center justify-between gap-2 py-1 border-t border-gray-50'},
+    el('div',{class:'text-sm'}, el('span',{style:wStyle('usa')},usaNames), el('span',{class:'text-xs text-gray-400'},'  vs  '), el('span',{style:wStyle('intl')},intlNames)),
+    badge
+  );
+}
+
 // ---------- NAV / WIRING ----------
 $('#nav-home').addEventListener('click', () => {
   // Games live in the games store; the active state is just the game in view.
   // Reset to a blank home state so we don't mirror a tournament-less record back.
   const keepYear = state.year;
   state = { ...DEFAULT_STATE(), year: keepYear };
+  cupView = null; cupActor = null;
   try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (_) {}
   render();
 });

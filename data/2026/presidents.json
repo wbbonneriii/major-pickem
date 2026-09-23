@@ -10,12 +10,103 @@
       "name": "International"
     }
   },
-  "sessions": [],
+  "sessions": [
+    {
+      "espnId": null,
+      "name": "Thursday Four-Balls",
+      "day": 1,
+      "order": 1,
+      "type": "fourballs",
+      "status": "scheduled",
+      "matches": [
+        {
+          "espnId": "12094",
+          "teamA": [
+            "Scottie Scheffler",
+            "Sam Burns"
+          ],
+          "teamB": [
+            "Sungjae Im",
+            "Min Woo Lee"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled"
+        },
+        {
+          "espnId": "12095",
+          "teamA": [
+            "Xander Schauffele",
+            "Cameron Young"
+          ],
+          "teamB": [
+            "Hideki Matsuyama",
+            "Ryo Hisatsune"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled"
+        },
+        {
+          "espnId": "12096",
+          "teamA": [
+            "Justin Thomas",
+            "Jackson Koivun"
+          ],
+          "teamB": [
+            "Corey Conners",
+            "Nico Echavarria"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled"
+        },
+        {
+          "espnId": "12097",
+          "teamA": [
+            "Collin Morikawa",
+            "Wyndham Clark"
+          ],
+          "teamB": [
+            "Adam Scott",
+            "Ryan Fox"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled"
+        },
+        {
+          "espnId": "12098",
+          "teamA": [
+            "Patrick Cantlay",
+            "Chris Gotterup"
+          ],
+          "teamB": [
+            "Si Woo Kim",
+            "Tom Kim"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled"
+        }
+      ]
+    }
+  ],
   "cupScore": {
     "usa": 0.0,
     "intl": 0.0
   },
   "source": "espn-core",
   "year": 2026,
-  "fetched_at": "2026-09-16T20:26:55.360254Z"
+  "fetched_at": "2026-09-23T21:44:46.395439Z"
 }

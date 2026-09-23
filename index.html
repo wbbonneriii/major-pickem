@@ -1289,6 +1289,10 @@ const routes = ['home','setup','draft','scoreboard'];
 // roomRole in a shared room).
 let cupView = null;   // 'setup' | 'hub' | 'scoreboard' | null (derive from readiness)
 let cupActor = null;  // participant id currently making picks on this device
+// Host-only, this device only, never persisted or pushed to the room. While a cup is on
+// ESPN auto-sync the host is also just a picker, so pairings and results render as text
+// and the pick control is the only thing to touch. Flip this on to correct the feed.
+let hostEditMode = false;
 function currentRoute() {
   if (!state.tournamentId)       return 'home';
   if (state.mode === 'teamcup') {
@@ -2839,14 +2843,30 @@ function mergeCupFeed(doc){
   if(doc.teams){ if(!state.teams.usa.name && doc.teams.usa?.name)state.teams.usa.name=doc.teams.usa.name;
                  if(!state.teams.intl.name && doc.teams.intl?.name)state.teams.intl.name=doc.teams.intl.name; }
   const usedSess=new Set();
+  const claimed=[];
+  // A session still holding nothing but empty template slots. Safe to re-seat and rename:
+  // no pairings, no espnId, nothing the host pinned, so no picks can reference it yet.
+  const isBlank = s => s.source!=='manual' && !s.espnId && s.matches.every(m =>
+    m.source!=='manual' && !m.espnId &&
+    !(m.teamA||[]).filter(Boolean).length && !(m.teamB||[]).filter(Boolean).length);
   (doc.sessions||[]).forEach((fs,fi)=>{
     let ss = state.sessions.find(s=>s.espnId && s.espnId===fs.name && !usedSess.has(s.id))
           || state.sessions.find(s=>normalizeName(s.name)===normalizeName(fs.name) && !usedSess.has(s.id))
-          || state.sessions.find(s=>!s.espnId && s.type===fs.type && s.source!=='manual' && !usedSess.has(s.id));
+          || state.sessions.find(s=>s.type===fs.type && !usedSess.has(s.id) && isBlank(s))
+          // Last resort: any untouched slot. The template's type guess is just a guess -
+          // the captains re-set the format each edition, so never strand a real session
+          // behind a placeholder that happens to be typed differently.
+          || state.sessions.find(s=>!usedSess.has(s.id) && isBlank(s));
     if(!ss){ ss={id:uid('s'),espnId:fs.name,day:fs.day||(fi+1),order:state.sessions.length+1,type:fs.type,name:fs.name,status:'draft',source:'auto',matches:[]}; state.sessions.push(ss); }
     usedSess.add(ss.id);
-    if(ss.source==='manual') return;               // pinned session — feed leaves it alone
+    if(ss.source==='manual'){ claimed.push(ss); return; }   // pinned session — feed leaves it alone
     if(!ss.espnId) ss.espnId=fs.name;
+    // ESPN is the authority on WHAT is played and WHEN. The host captain re-sets the
+    // format every edition (2026 Medinah opened with Four-Balls; 2024 opened with
+    // Foursomes), so the CUP_TEMPLATES skeleton is only a placeholder until the feed lands.
+    if(fs.name) ss.name=fs.name;
+    if(fs.day) ss.day=fs.day;
+    if(fs.type) ss.type=fs.type;
     (fs.matches||[]).forEach(fm=>{
       let mm = ss.matches.find(m=>m.espnId && m.espnId===fm.espnId)
             || ss.matches.find(m=>!m.espnId && m.source!=='manual' && !(m.teamA||[]).filter(Boolean).length && !(m.teamB||[]).filter(Boolean).length);
@@ -2859,7 +2879,22 @@ function mergeCupFeed(doc){
       mm.status = fm.status || 'scheduled';
     });
     recomputeSessionStatus(ss);
+    claimed.push(ss);
   });
+  // Re-seat: sessions ESPN has published sit in feed order at the front, untouched
+  // placeholders after. Without this a template slot ("Day 1 Foursomes") keeps its seat
+  // above the session actually being played first, which is how the 2026 Four-Balls
+  // opener ended up displayed as Day 2.
+  if(claimed.length){
+    const rest = state.sessions.filter(s=>!usedSess.has(s.id));
+    state.sessions = [...claimed, ...rest];
+    state.sessions.forEach((s,i)=>{
+      s.order = i+1;
+      // A leftover placeholder's templated name asserts a day/format ESPN has now
+      // contradicted. Relabel it rather than let it contradict the feed on screen.
+      if(!usedSess.has(s.id) && isBlank(s)) s.name = `Session ${i+1} - ${MATCH_TYPE_LABEL[s.type]} (TBD)`;
+    });
+  }
   state.lastFeedAt = doc.fetched_at || new Date().toISOString();
   return true;
 }
@@ -3033,7 +3068,12 @@ function hubSessionCard(s, host, actor){
   const controls = host? el('div',{class:'flex flex-wrap items-center gap-2 mt-1'},
     el('span',{class:'text-xs text-gray-500'},'Session:'),
     ...['draft','inprogress','final'].map(st=>el('button',{class:'btn '+(s.status===st?'btn-primary':'btn-ghost'), style:'padding:3px 9px;font-size:12px', onclick:()=>setSessionStatus(s.id,st)}, st==='draft'?'Open':st==='inprogress'?'Lock':'Final')),
-    el('label',{class:'flex items-center gap-1 text-xs text-gray-500 ml-2'}, el('input',{type:'checkbox', ...(s.source==='manual'?{checked:'checked'}:{}), onchange:()=>toggleSessionManual(s.id)}), 'Ignore ESPN')
+    el('label',{class:'flex items-center gap-1 text-xs text-gray-500 ml-2'}, el('input',{type:'checkbox', ...(s.source==='manual'?{checked:'checked'}:{}), onchange:()=>toggleSessionManual(s.id)}), 'Ignore ESPN'),
+    state.syncSource==='auto' && s.source!=='manual'
+      ? el('button',{class:'btn '+(hostEditMode?'btn-primary':'btn-ghost'), style:'padding:3px 9px;font-size:12px',
+          title:'ESPN fills pairings and results. Turn this on only to correct a late or wrong feed.',
+          onclick:()=>{ hostEditMode=!hostEditMode; render(); }}, hostEditMode?'Done editing':'Fix pairings/results')
+      : null
   ):null;
   const card=el('div',{class:'card p-4 mb-4'},
     el('div',{class:'flex flex-wrap items-center justify-between gap-2'},
@@ -3048,8 +3088,12 @@ function hubSessionCard(s, host, actor){
 function hubMatchRow(s,m,i,host,actor){
   const t=CUP_TEMPLATES[state.cupType]; const need=PLAYERS_PER_MATCH[s.type];
   const locked=sessionLocked(s); const final=m.status==='final'&&m.result&&m.result.winner;
+  // ESPN fills pairings and results for this match, so the host does not hand-enter them.
+  // Editors stay one click away (Fix pairings/results) for when the feed is wrong or late.
+  const espnDriven = state.syncSource==='auto' && s.source!=='manual' && m.source!=='manual';
+  const showEditors = host && (!espnDriven || hostEditMode);
   const teamPairing=(teamKey)=>{
-    if(host && m.status!=='final'){ const slots=[]; for(let k=0;k<need;k++) slots.push(pairingSelect(s,m,teamKey,k)); return el('div',{class:'flex gap-1 flex-wrap'},...slots); }
+    if(showEditors && m.status!=='final'){ const slots=[]; for(let k=0;k<need;k++) slots.push(pairingSelect(s,m,teamKey,k)); return el('div',{class:'flex gap-1 flex-wrap'},...slots); }
     const names=(teamKey==='usa'?m.teamA:m.teamB).filter(Boolean).map(id=>playerName(teamKey,id));
     return el('span',{class:'text-sm', style:`color:${t.teamColors[teamKey]};font-weight:600`}, names.length?names.join(' / '):'TBD');
   };
@@ -3072,7 +3116,7 @@ function hubMatchRow(s,m,i,host,actor){
     );
   }
   let resultEditor=null;
-  if(host){
+  if(showEditors){
     resultEditor=el('div',{class:'flex items-center gap-1 flex-wrap'},
       el('span',{class:'text-xs text-gray-400'},'Result:'),
       winnerSelect(m.result.winner, (v)=>setResult(s.id,m.id,{winner:v}), false),

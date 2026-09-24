@@ -2688,7 +2688,7 @@ async function openRoomModal() {
         el('div',{class:'font-serif text-lg text-masters-800'},
           mine ? `Your link - ${u.name}` : `Link for ${u.name}`),
         el('div',{class:'flex gap-2'},
-          el('a',{class:'btn btn-ghost text-sm', href:`sms:?&body=${body}`}, 'Text'),
+          el('a',{class:'btn btn-ghost text-sm', href:`sms:${getPhone(u.id)}?&body=${body}`}, 'Text'),
           el('a',{class:'btn btn-ghost text-sm', href:`mailto:?subject=${encodeURIComponent("Major Pick'em Draft")}&body=${body}`}, 'Email')
         )
       ),
@@ -3198,11 +3198,13 @@ function renderCupSetup(){
       ...state.participants.map((p,i)=>el('div',{class:'flex items-center gap-2'},
         el('span',{class:'text-xs text-gray-400 w-5 text-right'}, String(i+1)),
         el('input',{type:'text', value:p.name, placeholder:`Participant ${i+1}`, onchange:(e)=>setParticipantName(p.id,e.target.value)}),
+        el('input',{type:'tel', inputmode:'tel', autocomplete:'off', value:getPhone(p.id), placeholder:'Mobile (optional)', style:'max-width:150px', onchange:(e)=>{setPhone(p.id,e.target.value);render();}}),
         el('label',{class:'flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap'}, el('input',{type:'radio', name:'hostpick', ...(state.hostId===p.id?{checked:'checked'}:{}), onchange:()=>{state.hostId=p.id;persist();render();}}), 'Host'),
         el('button',{class:'btn btn-ghost', style:'padding:4px 10px', onclick:()=>removeParticipant(p.id)},'✕')
       )),
       state.participants.length?null:el('div',{class:'text-sm text-gray-500 italic'},'No participants yet')
     ),
+    state.participants.length?el('div',{class:'text-xs text-gray-500 mt-2'},'Mobile numbers let the Remind buttons address the text for you. They are saved on this phone only and never go into the shared room.'):null,
     el('button',{class:'btn btn-ghost mt-3', onclick:addParticipant}, '+ Add participant')
   ));
   const nMatches=state.sessions.reduce((a,s)=>a+s.matches.length,0);
@@ -3290,8 +3292,54 @@ function pickNudgeCard(){
         ? el('span',{class:'text-gray-700'}, 'Waiting on '+waiting.map(r=>`${r.p.name||'(unnamed)'} (${r.done}/${r.total})`).join(', '))
         : el('span',{class:'text-green-700 font-medium'}, 'All picks in for this session')
     ));
+    const nudges=reminderButtons(s, waiting.filter(r=>r.p.id!==activeActor()));
+    if(nudges) card.appendChild(nudges);
   });
   return card;
+}
+// Reminder texts. The app has no phone numbers and no SMS service, so it cannot text anyone
+// itself - these open Messages with the reminder written, carrying each person's OWN room
+// link (the link is their identity), and the sender picks the contact and taps send.
+// Room mode only: outside a room there is no link that would let them pick.
+function reminderButtons(s, waiting){
+  if(!waiting.length || !state.roomMode || !state.roomId) return null;
+  const t=CUP_TEMPLATES[state.cupType];
+  const lockAt=sessionAutoLockMs(s);
+  const when=lockAt?` Picks lock at first tee, ${fmtTeeTime(lockAt)}.`:'';
+  const one=(r)=>`${r.p.name}, ${s.name} pairings are out for our ${t.shortName} Pick'em and you have ${r.total-r.done} pick${r.total-r.done===1?'':'s'} to make.${when}\n${roomLink(state.roomId,r.p.id)}`;
+  const group=`${s.name} pairings are out for our ${t.shortName} Pick'em.${when} Tap your own link:\n`
+    + waiting.map(r=>`${r.p.name}: ${roomLink(state.roomId,r.p.id)}`).join('\n');
+  // With a saved number the text arrives addressed; without one Messages opens and asks.
+  // Group: iOS only takes several recipients through its /open?addresses= form.
+  const ios=/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+  const sms=(txt,nums=[])=>{
+    const b=encodeURIComponent(txt);
+    if(!nums.length) return `sms:?&body=${b}`;
+    if(nums.length===1) return `sms:${nums[0]}?&body=${b}`;
+    return ios ? `sms://open?addresses=${nums.join(',')}&body=${b}` : `sms:${nums.join(',')}?body=${b}`;
+  };
+  const groupNums=waiting.map(r=>getPhone(r.p.id)).filter(Boolean);
+  return el('div',{class:'flex flex-wrap items-center gap-2 mt-2'},
+    el('span',{class:'text-xs text-gray-500'},'Remind:'),
+    ...waiting.map(r=>{ const n=getPhone(r.p.id);
+      return el('a',{class:'btn btn-ghost text-sm', href:sms(one(r), n?[n]:[])}, `Text ${r.p.name||'(unnamed)'}`); }),
+    waiting.length>1 ? el('a',{class:'btn btn-ghost text-sm', href:sms(group, groupNums.length===waiting.length?groupNums:[])}, 'Text the group') : null
+  );
+}
+// Participants' mobile numbers. Deliberately NOT in `state`: state is what gets written to
+// the shared room (readable by anyone holding a room link) and packed into #z= share
+// links. These live in their own localStorage key on the host's phone and nowhere else.
+const PHONES_KEY='major-pickem:phones:v1';
+function phoneBook(){ try{ return JSON.parse(localStorage.getItem(PHONES_KEY)||'{}')||{}; }catch(_){ return {}; } }
+// Keyed by the game, falling back to the room, so numbers typed in Setup before the room
+// existed are still found once it does.
+function phoneScope(){ return state.gameId || state.roomId || 'local'; }
+function getPhone(pid){ const b=phoneBook(); return ((b[phoneScope()]||{})[pid]) || ((b[state.roomId]||{})[pid]) || ''; }
+function setPhone(pid,v){
+  const clean=String(v||'').replace(/[^\d+]/g,'');
+  const book=phoneBook(); const k=phoneScope(); book[k]=book[k]||{};
+  if(clean) book[k][pid]=clean; else delete book[k][pid];
+  try{ localStorage.setItem(PHONES_KEY, JSON.stringify(book)); }catch(_){}
 }
 function hubSessionCard(s, host, actor){
   const lockAt = sessionAutoLockMs(s);

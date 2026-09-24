@@ -3306,6 +3306,10 @@ function hubMatchRow(s,m,i,host,actor){
   // Each side is a full card rather than a text button: a colour spine for the team, the
   // golfers at a size you can read at arm's length, and a heavy ring when chosen. Modelled
   // on the two-card layout used for football pick'em, which is the shape people already know.
+  // Once the session locks the same cards stay up, read-only: a div instead of a button so
+  // nothing looks tappable, and on a final match the side that actually won is tagged.
+  const wonSide = final ? m.result.winner : null;
+  const wonTag=(col)=>el('div',{style:`font-size:10px;letter-spacing:.08em;font-weight:800;color:#fff;background:${col};border-radius:999px;padding:1px 8px;display:inline-block;margin-top:4px`},'WON');
   const pickCard=(side)=>{
     const on = pred.winner===side;
     const col = t.teamColors[side];
@@ -3315,12 +3319,14 @@ function hubMatchRow(s,m,i,host,actor){
     (names.length?names:[teamLabel]).forEach(n=>body.appendChild(
       el('div',{style:`font-size:16px;font-weight:700;line-height:1.3;color:${on?col:'#111827'};overflow-wrap:anywhere`}, n)));
     body.appendChild(el('div',{style:'font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;font-weight:700;margin-top:4px'}, teamLabel));
-    return el('button',{
+    if(wonSide===side) body.appendChild(wonTag(col));
+    return el(locked?'div':'button',{
       class:'pick-card',
       style:'display:flex;align-items:stretch;text-align:left;padding:0;overflow:hidden;border-radius:12px;'
         +`border:3px solid ${on?col:'#e5e7eb'};background:${on?col+'12':'#fff'};`
-        +(on?`box-shadow:0 2px 10px ${col}45;`:'box-shadow:0 1px 2px rgba(0,0,0,.06);'),
-      onclick:()=>setPrediction(actor,m.id,{winner: on?null:side})
+        +(on?`box-shadow:0 2px 10px ${col}45;`:'box-shadow:0 1px 2px rgba(0,0,0,.06);')
+        +(locked&&!on?'opacity:.7;':''),
+      ...(locked?{}:{onclick:()=>setPrediction(actor,m.id,{winner: on?null:side})})
     },
       el('div',{style:`width:10px;flex:none;background:${col}`}),
       body,
@@ -3329,12 +3335,28 @@ function hubMatchRow(s,m,i,host,actor){
   };
   const halvedCard=()=>{
     const on = pred.winner==='tie'; const col='#57606a';
-    return el('button',{
+    return el(locked?'div':'button',{
       class:'pick-halved',
       style:'padding:10px 14px;border-radius:12px;font-size:12px;font-weight:800;letter-spacing:.08em;'
-        +`border:3px solid ${on?col:'#d1d5db'};background:${on?col:'#f3f4f6'};color:${on?'#fff':'#4b5563'};`,
-      onclick:()=>setPrediction(actor,m.id,{winner: on?null:'tie'})
-    }, on?'✓ HALVED':'HALVED');
+        +'display:flex;flex-direction:column;align-items:center;justify-content:center;'
+        +`border:3px solid ${on?col:'#d1d5db'};background:${on?col:'#f3f4f6'};color:${on?'#fff':'#4b5563'};`
+        +(locked&&!on?'opacity:.7;':''),
+      ...(locked?{}:{onclick:()=>setPrediction(actor,m.id,{winner: on?null:'tie'})})
+    }, on?'✓ HALVED':'HALVED', wonSide==='tie'?wonTag(col):null);
+  };
+  // Locked: the margin box shows what you picked and, once final, what it earned.
+  const lockedOutcome=()=>{
+    const good = final && pickCorrect(m,pred);
+    const bg = !final ? '#f9fafb' : good ? '#ecfdf5' : '#fef2f2';
+    const bd = !final ? '#e5e7eb' : good ? '#a7f3d0' : '#fecaca';
+    const lab = (txt)=>el('div',{style:'font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;font-weight:800'}, txt);
+    const val = (txt,col)=>el('div',{style:`font-size:15px;font-weight:800;color:${col}`}, txt);
+    return el('div',{class:'pick-margin',style:`border:1px solid ${bd};border-radius:12px;padding:6px 12px;background:${bg};display:flex;flex-direction:column;justify-content:center;align-items:center;gap:2px;min-width:96px`},
+      pred.winner && pred.winner!=='tie' ? lab(pred.margin?`Margin ${pred.margin}`:'No margin') : lab(pred.winner?'Halved':'Locked'),
+      !pred.winner ? val('No pick','#9ca3af')
+        : final ? val(good?`✓ +${pickPoints(m,pred)}`:'✗ 0', good?'#047857':'#dc2626')
+        : val('Locked','#6b7280')
+    );
   };
   let pickArea;
   if(!actor){
@@ -3344,9 +3366,9 @@ function hubMatchRow(s,m,i,host,actor){
   // "TBD vs TBD" just buries the session that is actually open.
   else if(!hasPairing){ pickArea=el('span',{class:'text-xs text-gray-400'},'Pairing TBD'); }
   else if(locked){
-    pickArea = pred.winner
-      ? el('span',{class:'text-xs '+(final?(pickCorrect(m,pred)?'text-green-700 font-semibold':'text-red-600'):'text-gray-600')}, `Your pick: ${predLabel(pred)}${final?(pickCorrect(m,pred)?` ✓ +${pickPoints(m,pred)}`:' ✗'):''}`)
-      : el('span',{class:'text-xs text-gray-400'}, final?'No pick':'Locked - no pick');
+    pickArea=el('div',{class:'flex items-stretch gap-2 flex-wrap'},
+      pickCard('usa'), halvedCard(), pickCard('intl'), lockedOutcome()
+    );
   } else {
     const row=el('div',{class:'flex items-stretch gap-2 flex-wrap'},
       pickCard('usa'), halvedCard(), pickCard('intl')
@@ -3374,13 +3396,13 @@ function hubMatchRow(s,m,i,host,actor){
   }
   // When the pick cards are up they already carry both pairings, so repeating the names in
   // the header is just noise at the top of every match.
-  const compactHeader = actor && hasPairing && !locked && !showEditors;
+  const compactHeader = actor && hasPairing && !showEditors;
   return el('div',{class:'border-t border-gray-100 py-3'},
     el('div',{class:'flex flex-wrap items-center justify-between gap-2 mb-2'},
       compactHeader
         ? el('div',{class:'flex items-baseline gap-2'},
             el('span',{style:'font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;font-weight:800'}, `Match ${i+1}`),
-            pred.winner?null:el('span',{class:'text-xs text-gray-400'},'tap a side'))
+            (pred.winner||locked)?null:el('span',{class:'text-xs text-gray-400'},'tap a side'))
         : el('div',{class:'flex items-center gap-2 min-w-0 flex-1'}, el('span',{class:'text-xs text-gray-400 w-4 shrink-0'}, String(i+1)), pairing),
       resultBadge
     ),

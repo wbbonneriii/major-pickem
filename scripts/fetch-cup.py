@@ -339,12 +339,17 @@ def flatten(event_id: str, cup_type: str, team_b_default: str):
             "order": order,
             "type": s["type"],
             "status": sess_status,
+            # Tee times, carried through so the app can lock picks on the clock rather than
+            # waiting for this feed to say a match is in progress. GitHub throttles the
+            # workflow to hours, so a status-only lock would leave picks open during play.
+            "date": s["date"],
             "matches": [{
                 "espnId": mm["espnId"],
                 "teamA": mm["teamA"],
                 "teamB": mm["teamB"],
                 "result": mm["result"],
                 "status": mm["status"],
+                "date": mm["date"],
             } for mm in s["matches"]],
         })
 

@@ -65,6 +65,14 @@
   .modal-backdrop.show { display:flex; }
   .modal-card { background:#fff; border-radius:14px; box-shadow:0 30px 80px rgba(0,0,0,.25); max-width:640px; width:100%; padding:22px; }
   .modal-card textarea { width:100%; min-height:110px; border:1px solid #d1d5db; border-radius:9px; padding:9px 10px; font-family:ui-monospace,Menlo,monospace; font-size:12px; color:#111827; background:#f9fafb; resize:vertical; word-break:break-all; }
+  /* Cup pick cards. Side by side with room; stacked full width on a phone so the two
+     pairings stay the same size as each other and stay big enough to hit with a thumb. */
+  .pick-card   { flex:1 1 210px; min-width:0; }
+  .pick-halved { flex:0 0 auto; }
+  .pick-margin { flex:0 0 auto; }
+  @media (max-width:640px) {
+    .pick-card, .pick-halved, .pick-margin { flex:1 1 100%; }
+  }
 </style>
 </head>
 <body class="min-h-screen">
@@ -193,10 +201,11 @@ const CUP_TEMPLATES = {
     id:'presidents', name:'Presidents Cup', shortName:'Presidents Cup',
     teamA:'United States', teamB:'International',
     color:'#0a2240', accent:'#b1121b',
-    // Navy vs slate read as the same colour at a glance, which made the two sides of a match
-    // impossible to tell apart. Amber against navy is the most separable pair there is and
-    // stays legible for the red/green colourblind. Used for pairings, buttons and the scoreboard.
-    teamColors:{ usa:'#0a3161', intl:'#b45309' },
+    // The teams' own colours: USA red, International gold. Purely presentational - drives
+    // pairing text, the pick cards and the scoreboard. Red against gold is weaker for the
+    // red/green colourblind than a cool/warm pair would be, so the cards never lean on
+    // colour alone: each carries its team name and a tick, and USA is always on the left.
+    teamColors:{ usa:'#c8102e', intl:'#b8860b' },
     defaultYear:2026, toWin:15.5, total:30, retainOnTie:false,
     // Standard 30-match skeleton (order/AM-PM can vary by edition — host can reorder/retype).
     sessions:[
@@ -211,7 +220,8 @@ const CUP_TEMPLATES = {
     id:'ryder', name:'Ryder Cup', shortName:'Ryder Cup',
     teamA:'United States', teamB:'Europe',
     color:'#c8102e', accent:'#003a70',
-    teamColors:{ usa:'#0a3161', intl:'#b8860b' },
+    // USA red, Europe blue - the Ryder Cup's own pairing, and the most separable of the lot.
+    teamColors:{ usa:'#c8102e', intl:'#003a70' },
     defaultYear:2027, toWin:14.5, total:28, retainOnTie:true,
     // Session names match ESPN's descriptions so the feed maps straight onto the skeleton.
     sessions:[
@@ -1301,6 +1311,7 @@ function currentRoute() {
   if (state.mode === 'teamcup') {
     if (cupView === 'setup')      return 'cupsetup';
     if (cupView === 'scoreboard') return 'cupscore';
+    if (cupView === 'allpicks')   return 'cupallpicks';
     if (cupView === 'hub')        return 'cuphub';
     return cupReady() ? 'cuphub' : 'cupsetup';
   }
@@ -1317,6 +1328,7 @@ function render() {
     r === 'home'       ? renderHome() :
     r === 'cupsetup'   ? renderCupSetup() :
     r === 'cuphub'     ? renderCupHub() :
+    r === 'cupallpicks'? renderCupAllPicks() :
     r === 'cupscore'   ? renderCupScoreboard() :
     r === 'setup'      ? renderSetup() :
     r === 'draft'      ? renderDraft() :
@@ -3048,7 +3060,8 @@ function cupSubnav(active){
       el('div',{class:'text-xs uppercase tracking-wider text-gray-500 font-semibold'}, `${t.name} • ${state.year}`),
       el('h2',{class:'font-serif text-3xl text-masters-800 font-extrabold'}, state.gameName||t.name)
     ),
-    el('div',{class:'flex gap-2'}, btn('setup','Setup'), btn('hub','Matches & Picks',!cupReady()), btn('scoreboard','Scoreboard',!cupReady()))
+    el('div',{class:'flex gap-2 flex-wrap'}, btn('setup','Setup'), btn('hub','Matches & Picks',!cupReady()),
+      btn('allpicks','Everyone’s Picks',!cupReady()), btn('scoreboard','Scoreboard',!cupReady()))
   );
 }
 function teamEditor(teamKey){
@@ -3165,12 +3178,25 @@ function pickNudgeCard(){
   if(!open.length || !(state.participants||[]).length) return null;
   const card=el('div',{class:'card p-4 mb-5'}, el('h3',{class:'font-serif text-lg text-masters-800'},'Pick status'));
   open.forEach(s=>{
-    const waiting=sessionPickStatus(s).filter(r=>!r.complete);
-    card.appendChild(el('div',{class:'text-sm mt-1'},
-      el('span',{class:'font-semibold text-masters-800'}, s.name+': '),
+    const rows=sessionPickStatus(s);
+    const waiting=rows.filter(r=>!r.complete);
+    // Your own progress first and as a bar - it is the thing you can act on.
+    const mine=rows.find(r=>r.p.id===activeActor());
+    if(mine){
+      const pct=mine.total?Math.round((mine.done/mine.total)*100):0;
+      card.appendChild(el('div',{class:'mt-2'},
+        el('div',{class:'flex items-baseline justify-between gap-2'},
+          el('span',{class:'text-sm font-semibold text-masters-800'}, s.name),
+          el('span',{class:'text-sm '+(mine.complete?'text-green-700 font-semibold':'text-gray-600')},
+            `${mine.done}/${mine.total} picks made`)),
+        el('div',{style:'height:8px;border-radius:999px;background:#e5e7eb;overflow:hidden;margin-top:5px'},
+          el('div',{style:`height:100%;width:${pct}%;border-radius:999px;background:${mine.complete?'#15803d':'#b45309'}`}))
+      ));
+    }
+    card.appendChild(el('div',{class:'text-sm mt-2'},
       waiting.length
-        ? el('span',{class:'text-gray-700'}, 'waiting on '+waiting.map(r=>`${r.p.name||'(unnamed)'} (${r.done}/${r.total})`).join(', '))
-        : el('span',{class:'text-green-700 font-medium'}, 'all picks in')
+        ? el('span',{class:'text-gray-700'}, 'Waiting on '+waiting.map(r=>`${r.p.name||'(unnamed)'} (${r.done}/${r.total})`).join(', '))
+        : el('span',{class:'text-green-700 font-medium'}, 'All picks in for this session')
     ));
   });
   return card;
@@ -3227,19 +3253,38 @@ function hubMatchRow(s,m,i,host,actor){
     const names=(teamKey==='usa'?m.teamA:m.teamB).filter(Boolean).map(id=>playerName(teamKey,id));
     return names.length?names.join(' / '):(teamKey==='usa'?'USA':t.teamB);
   };
-  // Each side keeps its team colour whether or not it is chosen, so you can tell the two
-  // apart before you pick, not only after. Unselected is a light wash of the same colour;
-  // selected fills solid. The 8-digit hex suffixes are alpha (14 = ~8%, 55 = ~33%).
-  const pickBtn=(side,label)=>{
+  // Each side is a full card rather than a text button: a colour spine for the team, the
+  // golfers at a size you can read at arm's length, and a heavy ring when chosen. Modelled
+  // on the two-card layout used for football pick'em, which is the shape people already know.
+  const pickCard=(side)=>{
     const on = pred.winner===side;
-    const col = side==='tie' ? '#57606a' : t.teamColors[side];
-    const base = 'padding:10px 14px;font-size:15px;line-height:1.2;border-width:2px;border-style:solid;border-radius:8px;';
+    const col = t.teamColors[side];
+    const teamLabel = side==='usa' ? (state.teams.usa.name||'United States') : (state.teams.intl.name||t.teamB);
+    const names=(side==='usa'?m.teamA:m.teamB).filter(Boolean).map(id=>playerName(side,id));
+    const body=el('div',{style:'padding:10px 12px;min-width:0;flex:1'});
+    (names.length?names:[teamLabel]).forEach(n=>body.appendChild(
+      el('div',{style:`font-size:16px;font-weight:700;line-height:1.3;color:${on?col:'#111827'};overflow-wrap:anywhere`}, n)));
+    body.appendChild(el('div',{style:'font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;font-weight:700;margin-top:4px'}, teamLabel));
     return el('button',{
-      style: base + (on
-        ? `background:${col};border-color:${col};color:#fff;font-weight:700;box-shadow:0 1px 3px ${col}66;`
-        : `background:${col}14;border-color:${col}55;color:${col};font-weight:600;`),
+      class:'pick-card',
+      style:'display:flex;align-items:stretch;text-align:left;padding:0;overflow:hidden;border-radius:12px;'
+        +`border:3px solid ${on?col:'#e5e7eb'};background:${on?col+'12':'#fff'};`
+        +(on?`box-shadow:0 2px 10px ${col}45;`:'box-shadow:0 1px 2px rgba(0,0,0,.06);'),
       onclick:()=>setPrediction(actor,m.id,{winner: on?null:side})
-    }, on ? '✓ ' + label : label);
+    },
+      el('div',{style:`width:10px;flex:none;background:${col}`}),
+      body,
+      on?el('div',{style:`display:flex;align-items:center;padding:0 12px;font-size:20px;font-weight:800;color:${col}`},'✓'):null
+    );
+  };
+  const halvedCard=()=>{
+    const on = pred.winner==='tie'; const col='#57606a';
+    return el('button',{
+      class:'pick-halved',
+      style:'padding:10px 14px;border-radius:12px;font-size:12px;font-weight:800;letter-spacing:.08em;'
+        +`border:3px solid ${on?col:'#d1d5db'};background:${on?col:'#f3f4f6'};color:${on?'#fff':'#4b5563'};`,
+      onclick:()=>setPrediction(actor,m.id,{winner: on?null:'tie'})
+    }, on?'✓ HALVED':'HALVED');
   };
   let pickArea;
   if(!actor){
@@ -3253,17 +3298,17 @@ function hubMatchRow(s,m,i,host,actor){
       ? el('span',{class:'text-xs '+(final?(pickCorrect(m,pred)?'text-green-700 font-semibold':'text-red-600'):'text-gray-600')}, `Your pick: ${predLabel(pred)}${final?(pickCorrect(m,pred)?` ✓ +${pickPoints(m,pred)}`:' ✗'):''}`)
       : el('span',{class:'text-xs text-gray-400'}, final?'No pick':'Locked - no pick');
   } else {
-    const row=el('div',{class:'flex items-center gap-2 flex-wrap'},
-      el('span',{class:'text-xs text-gray-500 w-full sm:w-auto'}, pred.winner?'Your pick:':'Tap the winner:'),
-      pickBtn('usa', sideNames('usa')),
-      pickBtn('tie', 'Halved'),
-      pickBtn('intl', sideNames('intl'))
+    const row=el('div',{class:'flex items-stretch gap-2 flex-wrap'},
+      pickCard('usa'), halvedCard(), pickCard('intl')
     );
-    // Margin is worth a bonus point, so only ask for it once a side is chosen.
+    // Margin is worth a bonus point, so only ask for it once a side is chosen. Boxed and
+    // labelled like the football "points for win" selector so it reads as a second step,
+    // not a second required field.
     if(pred.winner && pred.winner!=='tie'){
-      row.appendChild(el('span',{class:'text-xs text-gray-500 ml-1'},'by'));
-      row.appendChild(marginSelect(pred.margin, pred.winner, (v)=>setPrediction(actor,m.id,{margin:v}), false));
-      if(!pred.margin) row.appendChild(el('span',{class:'text-xs text-gray-400'},'optional, +1 if exact'));
+      row.appendChild(el('div',{class:'pick-margin',style:'border:1px solid #e5e7eb;border-radius:12px;padding:6px 10px;background:#f9fafb;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:3px'},
+        el('div',{style:'font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;font-weight:800'}, pred.margin?'Margin':'Margin +1'),
+        marginSelect(pred.margin, pred.winner, (v)=>setPrediction(actor,m.id,{margin:v}), false)
+      ));
     }
     pickArea=row;
   }
@@ -3277,14 +3322,106 @@ function hubMatchRow(s,m,i,host,actor){
       m.source==='manual'?el('span',{class:'text-xs text-gray-400', title:'Pinned — ESPN will not overwrite'},'📌'):null
     );
   }
-  return el('div',{class:'border-t border-gray-100 py-2'},
-    el('div',{class:'flex flex-wrap items-center justify-between gap-2'},
-      el('div',{class:'flex items-center gap-2 min-w-0 flex-1'}, el('span',{class:'text-xs text-gray-400 w-4 shrink-0'}, String(i+1)), pairing),
+  // When the pick cards are up they already carry both pairings, so repeating the names in
+  // the header is just noise at the top of every match.
+  const compactHeader = actor && hasPairing && !locked && !showEditors;
+  return el('div',{class:'border-t border-gray-100 py-3'},
+    el('div',{class:'flex flex-wrap items-center justify-between gap-2 mb-2'},
+      compactHeader
+        ? el('div',{class:'flex items-baseline gap-2'},
+            el('span',{style:'font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;font-weight:800'}, `Match ${i+1}`),
+            pred.winner?null:el('span',{class:'text-xs text-gray-400'},'tap a side'))
+        : el('div',{class:'flex items-center gap-2 min-w-0 flex-1'}, el('span',{class:'text-xs text-gray-400 w-4 shrink-0'}, String(i+1)), pairing),
       resultBadge
     ),
-    el('div',{class:'mt-1 pl-6'}, pickArea),
+    pickArea,
     resultEditor?el('div',{class:'mt-2 pl-6'},resultEditor):null
   );
+}
+// Everyone's card. A session's picks stay private until it locks, so nobody can copy off
+// the board; once play starts they are all on show, side by side, with who got what right.
+function renderCupAllPicks(){
+  const t=CUP_TEMPLATES[state.cupType];
+  const wrap=el('section'); wrap.appendChild(cupSubnav('allpicks'));
+  const people=(state.participants||[]).filter(p=>p.name);
+  const open=state.sessions.filter(s=>!sessionLocked(s) && s.matches.some(m=>(m.teamA||[]).filter(Boolean).length));
+  const revealed=state.sessions.filter(s=>sessionLocked(s));
+
+  if(!revealed.length){
+    wrap.appendChild(el('div',{class:'card p-6 text-center'},
+      el('h3',{class:'font-serif text-xl text-masters-800 mb-2'},'Nothing to show yet'),
+      el('div',{class:'text-sm text-gray-600'},
+        'Picks stay hidden until a session locks, so nobody can see what anyone else took.'),
+      el('div',{class:'text-sm text-gray-600 mt-1'},
+        open.length ? `${open[0].name} unlocks everyone's picks the moment it goes In Progress.`
+                    : 'Once a session starts, every pick appears here.')
+    ));
+    return wrap;
+  }
+
+  const sideColor=(w)=> w==='usa'?t.teamColors.usa : w==='intl'?t.teamColors.intl : '#57606a';
+  revealed.forEach(s=>{
+    const card=el('div',{class:'card p-4 mb-5'});
+    card.appendChild(el('div',{class:'flex flex-wrap items-center justify-between gap-2 mb-3'},
+      el('div',{},
+        el('h3',{class:'font-serif text-xl text-masters-800'}, s.name),
+        el('div',{class:'text-xs text-gray-500'}, `${s.matches.length} × ${MATCH_TYPE_LABEL[s.type]}`)),
+      s.status==='final' ? el('span',{class:'pill pill-green'},'Final')
+        : el('span',{class:'pill', style:'background:#fef3c7;color:#92400e;border-color:#fde68a'},'In Progress')
+    ));
+    // Session running total per person, so the table has a bottom line.
+    const tally={}; people.forEach(p=>tally[p.id]={pts:0,right:0,graded:0});
+    const head=el('tr',{class:'text-left text-gray-500 border-b border-gray-200'},
+      el('th',{class:'py-2 pr-3', style:'min-width:190px'},'Match'),
+      el('th',{class:'py-2 pr-3', style:'min-width:110px'},'Result'),
+      ...people.map(p=>el('th',{class:'py-2 pr-3', style:'min-width:105px'}, p.name)));
+    const body=el('tbody',{});
+    s.matches.forEach((m,i)=>{
+      const fin = m.status==='final' && m.result && m.result.winner;
+      const names=(k)=>{ const n=(k==='usa'?m.teamA:m.teamB).filter(Boolean).map(id=>playerName(k,id)); return n.length?n.join(' / '):'TBD'; };
+      const row=el('tr',{class:'border-b border-gray-100 align-top'});
+      row.appendChild(el('td',{class:'py-2 pr-3'},
+        el('div',{class:'text-xs text-gray-400'}, `Match ${i+1}`),
+        el('div',{style:`font-size:13px;font-weight:600;color:${t.teamColors.usa}`}, names('usa')),
+        el('div',{style:`font-size:13px;font-weight:600;color:${t.teamColors.intl}`}, names('intl'))));
+      row.appendChild(el('td',{class:'py-2 pr-3'},
+        fin ? el('span',{class:'pill', style:`background:${sideColor(m.result.winner)}14;color:${sideColor(m.result.winner)};border-color:${sideColor(m.result.winner)}55;font-weight:700`},
+                m.result.winner==='tie'?'Halved':`${m.result.winner==='usa'?'USA':t.teamB} ${m.result.margin||''}`)
+            : el('span',{class:'text-xs text-gray-400'}, m.status==='inprogress'?'on the course':'not started')));
+      people.forEach(p=>{
+        const pr=((state.predictions||{})[p.id]||{})[m.id];
+        if(!pr||!pr.winner){ row.appendChild(el('td',{class:'py-2 pr-3'}, el('span',{class:'text-xs text-gray-300'},'no pick'))); return; }
+        const col=sideColor(pr.winner);
+        const right = fin && pickCorrect(m,pr);
+        const pts = fin ? pickPoints(m,pr) : 0;
+        if(fin){ tally[p.id].graded++; if(right){ tally[p.id].right++; tally[p.id].pts+=pts; } }
+        row.appendChild(el('td',{class:'py-2 pr-3'},
+          el('div',{style:`font-size:13px;font-weight:700;color:${col}`},
+            pr.winner==='tie'?'Halved':(pr.winner==='usa'?'USA':t.teamB)),
+          pr.margin && pr.winner!=='tie' ? el('div',{class:'text-xs text-gray-500'}, pr.margin) : null,
+          fin ? el('div',{class:'text-xs font-semibold '+(right?'text-green-700':'text-red-600')},
+                  right?`✓ +${pts}`:'✗') : null));
+      });
+      body.appendChild(row);
+    });
+    const foot=el('tr',{class:'border-t-2 border-gray-200'},
+      el('td',{class:'py-2 pr-3 font-semibold text-masters-800'},'Session points'),
+      el('td',{class:'py-2 pr-3'},''),
+      ...people.map(p=>el('td',{class:'py-2 pr-3'},
+        el('span',{class:'font-serif text-lg font-bold text-masters-800'}, String(tally[p.id].pts)),
+        el('span',{class:'text-xs text-gray-500'}, ` (${tally[p.id].right}/${tally[p.id].graded})`))));
+    body.appendChild(foot);
+    card.appendChild(el('div',{class:'overflow-x-auto'},
+      el('table',{class:'w-full text-sm'}, el('thead',{},head), body)));
+    wrap.appendChild(card);
+  });
+
+  if(open.length){
+    wrap.appendChild(el('div',{class:'card p-4 text-sm text-gray-600'},
+      el('span',{class:'font-semibold text-masters-800'},'Still hidden: '),
+      open.map(s=>s.name).join(', ')+' - picks appear here once the session locks.'));
+  }
+  return wrap;
 }
 function renderCupScoreboard(){
   const t=CUP_TEMPLATES[state.cupType]; const wrap=el('section'); wrap.appendChild(cupSubnav('scoreboard'));

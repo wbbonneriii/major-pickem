@@ -3042,9 +3042,89 @@ async function loadCupFeed({silent=false}={}){
   try{ const r=await fetch(url,{cache:'no-cache'}); if(!r.ok){ if(!silent)toast('No ESPN feed available for this cup yet.'); return false; } doc=await r.json(); }
   catch(e){ if(!silent)toast('ESPN feed load failed.'); return false; }
   const ok=mergeCupFeed(doc);
-  if(ok) await applyLiveResults();
+  if(ok){ await fetchNewPairings(); await applyLiveResults(); }
   if(ok){ persist(); if(state.roomMode)pushRoom(); render(); if(!silent)toast('Synced pairings & results from ESPN.'); }
   return ok;
+}
+// New pairings, straight from ESPN in the browser, so a session opens for picks minutes
+// after the captains announce it rather than whenever GitHub next runs the updater (3-5
+// hours). One request per poll when nothing is new (the event doc lists every match with
+// its session name, tee time and format inline). Only matches this game has never seen are
+// resolved - ~7 requests each, once - and player names are cached across polls.
+// All-or-nothing, per the fetch-cup.py failure history: any failed lookup abandons the
+// whole pass, so a throttled or half-published response can never add a partial session.
+const ESPN_CORE='https://sports.core.api.espn.com/v2/sports/golf/leagues/pga';
+const ESPN_TYPE_MAP={foursome:'foursomes', fourball:'fourballs', singles:'singles'};
+const ATHLETE_CACHE_KEY='major-pickem:athletes:v1';
+async function espnJSON(url){
+  // ESPN's $refs are http://; the page is https, so an unrewritten ref is blocked as mixed content.
+  const r=await fetch(String(url).replace(/^http:/,'https:'),{cache:'no-store'});
+  if(!r.ok) throw new Error(`ESPN ${r.status}`);
+  return r.json();
+}
+async function fetchNewPairings(){
+  if(!state.espnEventId || state.syncSource!=='auto') return false;
+  try{
+    const ev=await espnJSON(`${ESPN_CORE}/events/${state.espnEventId}?lang=en&region=us`);
+    const comps=(ev.competitions||[]).filter(c=>ESPN_TYPE_MAP[(c.type||{}).text]);
+    const known=new Set(); state.sessions.forEach(s=>s.matches.forEach(m=>{ if(m.espnId) known.add(String(m.espnId)); }));
+    const fresh=comps.filter(c=>!known.has(String(c.id)));
+    if(!fresh.length) return false;
+
+    let names={}; try{ names=JSON.parse(localStorage.getItem(ATHLETE_CACHE_KEY)||'{}')||{}; }catch(_){}
+    const teams={};
+    const sideOf=async(ref)=>{
+      const id=(String(ref||'').match(/\/teams\/(\d+)/)||[])[1];
+      if(!id) throw new Error('competitor has no team');
+      if(!teams[id]){ const t=await espnJSON(ref); teams[id]=/^(usa|us|united states)$/i.test(t.abbreviation||t.displayName||'')?'usa':'intl'; }
+      return teams[id];
+    };
+    const athlete=async(ref)=>{
+      const id=(String(ref||'').match(/\/athletes\/(\d+)/)||[])[1];
+      if(id && names[id]) return names[id];
+      const a=await espnJSON(ref); if(!a.displayName) throw new Error('athlete has no name');
+      if(id) names[id]=a.displayName; return a.displayName;
+    };
+    const resolved={};
+    await Promise.all(fresh.map(async c=>{
+      const m=await espnJSON(c.$ref);
+      const cps=m.competitors||[]; if(cps.length!==2) throw new Error(`match ${c.id}: ${cps.length} competitors`);
+      const bySide={};
+      for(const cp of cps){
+        const side=await sideOf(cp.team&&cp.team.$ref);
+        let refs=[];
+        if(cp.roster&&cp.roster.$ref){ const r=await espnJSON(cp.roster.$ref); refs=(r.entries||[]).map(e=>e.athlete&&e.athlete.$ref).filter(Boolean); }
+        if(!refs.length && cp.athlete&&cp.athlete.$ref) refs=[cp.athlete.$ref];   // singles shape
+        if(!refs.length) throw new Error(`match ${c.id}: no players`);
+        bySide[side]=await Promise.all(refs.map(athlete));
+      }
+      if(!bySide.usa||!bySide.intl) throw new Error(`match ${c.id}: both sides resolved the same`);
+      resolved[String(c.id)]=bySide;
+    }));
+    try{ localStorage.setItem(ATHLETE_CACHE_KEY, JSON.stringify(names)); }catch(_){}
+
+    // Rebuild the whole event in feed shape and hand it to mergeCupFeed, which already knows
+    // how to claim placeholder sessions and re-seat them in ESPN order. Matches we already
+    // hold are passed back exactly as they stand, so this only ever ADDS.
+    const current=new Map(); state.sessions.forEach(s=>s.matches.forEach(m=>{ if(m.espnId) current.set(String(m.espnId),m); }));
+    const bySess=new Map();
+    comps.forEach(c=>{
+      const id=String(c.id); const have=current.get(id);
+      const teamA = have ? (have.teamA||[]).filter(Boolean).map(p=>playerName('usa',p)) : resolved[id].usa;
+      const teamB = have ? (have.teamB||[]).filter(Boolean).map(p=>playerName('intl',p)) : resolved[id].intl;
+      const key=c.description||ESPN_TYPE_MAP[c.type.text];
+      const s=bySess.get(key)||{name:key, type:ESPN_TYPE_MAP[c.type.text], date:c.date, matches:[]};
+      if(c.date && (!s.date || c.date<s.date)) s.date=c.date;
+      s.matches.push({ espnId:id, teamA, teamB, date:c.date,
+        result: have ? {...have.result} : {winner:null,margin:null},
+        status: have ? have.status : 'scheduled' });
+      bySess.set(key,s);
+    });
+    const sessions=[...bySess.values()].sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+    const days=[...new Set(sessions.map(s=>(s.date||'').slice(0,10)))].sort();
+    sessions.forEach((s,i)=>{ s.order=i+1; s.day=days.indexOf((s.date||'').slice(0,10))+1||i+1; });
+    return mergeCupFeed({ cupType:state.cupType, eventId:String(state.espnEventId), sessions, fetched_at:new Date().toISOString() });
+  }catch(e){ return false; }
 }
 // Live results, straight from ESPN's scoreboard in the browser. The committed feed carries
 // pairings and tee times, but GitHub runs its updater every 3-5 hours whatever the cron

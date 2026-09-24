@@ -2376,6 +2376,15 @@ async function roomPut(roomId, doc) {
   if (!r.ok) throw new Error('PUT ' + r.status);
   return await r.json();
 }
+// Partial write. Keys may be deep paths ("predictions/p2"), which Firebase merges into the
+// existing doc instead of replacing it - the only safe way for several people to write at once.
+async function roomPatch(roomId, partial) {
+  const r = await fetch(roomUrl(roomId), {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(partial)
+  });
+  if (!r.ok) throw new Error('PATCH ' + r.status);
+  return await r.json();
+}
 
 // Unlike the one-shot view-only #z= share, a draft room must ship the FULL field — the
 // joiner drafts from it, so every undrafted player plus the category attributes
@@ -2513,15 +2522,44 @@ async function pushRoom() {
   try {
     const remote = await roomGet(state.roomId);
     if (remote && (remote.rev || 0) > (state.roomRev || 0)) {
-      applyRoomDoc(remote); render();
-      toast('Draft updated from the other player.');
-      return;
+      // A snake draft is turn-based, so a stale device was not on the clock: it yields and
+      // drops what it was trying to write. A cup has no turns - everyone picks at once - so
+      // yielding here is how one person's pick silently vanished.
+      if (state.mode !== 'teamcup') { applyRoomDoc(remote); render(); toast('Draft updated from the other player.'); return; }
+      // Cup: adopt the newer doc so everyone else's picks survive, but keep THIS device's
+      // sessions when it is the host. The host owns pairings and results, and is normally
+      // pushing precisely because they just changed one - adopting remote would revert it.
+      const mySessions = state.sessions;
+      const wasHost = isCupHost();
+      applyCupRoomDoc(remote);
+      if (wasHost) state.sessions = mySessions;
+      render();
     }
-    const nextRev = (state.roomRev || 0) + 1;
+    const nextRev = Math.max((state.roomRev || 0) + 1, Date.now());
     await roomPut(state.roomId, serializeRoomDoc(nextRev, state.roomRole));
     state.roomRev = nextRev; persist();
   } catch (e) {
-    toast('Sync failed — your pick is saved here. It will retry on your next action.');
+    toast('Sync failed - your pick is saved here. It will retry on your next action.');
+  }
+}
+// Picks in a cup are made by everyone simultaneously, so a pick must NOT rewrite the whole
+// room doc - two people picking in the same few seconds would overwrite each other. Each
+// participant owns exactly one subtree, predictions/<id>, so patching only that subtree is
+// conflict free by construction. rev is a timestamp rather than a counter so two devices
+// cannot mint the same revision and leave a third device thinking it is already current.
+async function pushCupPicks() {
+  if (!state.roomMode || !state.roomId) return;
+  const actor = state.roomRole;
+  if (!actor) return;
+  try {
+    const rev = Math.max((state.roomRev || 0) + 1, Date.now());
+    await roomPatch(state.roomId, {
+      [`predictions/${actor}`]: state.predictions[actor] || {},
+      rev
+    });
+    state.roomRev = rev; persist();
+  } catch (e) {
+    toast('Sync failed - your picks are saved here and will retry on your next pick.');
   }
 }
 function afterLocalPick() { if (state.roomMode) pushRoom(); }
@@ -2614,7 +2652,11 @@ async function openRoomModal() {
 
   const people = state.mode === 'teamcup' ? state.participants : state.users;
   const eventLabel = state.mode === 'teamcup' ? CUP_TEMPLATES[state.cupType].shortName : (tournamentFor(state.tournamentId)?.shortName || '');
-  const others = people.filter(u => u.id !== state.roomRole);
+  const isCup = state.mode === 'teamcup';
+  // Everyone gets a link, including whoever is holding this screen - the host still needs
+  // their own link to pick from their phone. Own link sorts first and is labelled as such.
+  const others = [...people].sort((a,b) =>
+    (a.id===state.roomRole?0:1) - (b.id===state.roomRole?0:1));
 
   // Let the host correct which player/participant THEY are.
   const roleSel = el('select',{class:'border border-gray-300 rounded px-2 py-1 text-sm',
@@ -2625,9 +2667,11 @@ async function openRoomModal() {
     const link = roomLink(state.roomId, u.id);
     const input = el('input',{class:'flex-1 min-w-0 border border-gray-300 rounded px-2 py-1 font-mono text-xs', readonly:'readonly', value:link, onclick:(e)=>e.target.select()});
     const body = encodeURIComponent(`You're invited to our ${eventLabel} Pick'em. Open this link to make your picks:\n${link}`);
-    return el('div',{class:'border border-gray-200 rounded-lg p-3'},
+    const mine = u.id === state.roomRole;
+    return el('div',{class:'border rounded-lg p-3 '+(mine?'border-masters-800':'border-gray-200')},
       el('div',{class:'flex items-center justify-between mb-2'},
-        el('div',{class:'font-serif text-lg text-masters-800'}, `Link for ${u.name}`),
+        el('div',{class:'font-serif text-lg text-masters-800'},
+          mine ? `Your link - ${u.name}` : `Link for ${u.name}`),
         el('div',{class:'flex gap-2'},
           el('a',{class:'btn btn-ghost text-sm', href:`sms:?&body=${body}`}, 'Text'),
           el('a',{class:'btn btn-ghost text-sm', href:`mailto:?subject=${encodeURIComponent("Major Pick'em Draft")}&body=${body}`}, 'Email')
@@ -2647,15 +2691,17 @@ async function openRoomModal() {
   const card = el('div',{class:'bg-white rounded-xl max-w-xl w-full shadow-2xl overflow-hidden'},
     el('div',{class:'px-6 py-4 border-b border-gray-200 flex items-center justify-between'},
       el('div',{},
-        el('h3',{class:'font-serif text-2xl text-masters-800 font-bold'},'Shared Draft Room'),
-        el('div',{class:'text-sm text-gray-600 mt-1'}, 'Send each player their own link. Picks sync back here automatically — each person drafts whenever it’s their turn.')
+        el('h3',{class:'font-serif text-2xl text-masters-800 font-bold'}, isCup?'Shared Pick’em Room':'Shared Draft Room'),
+        el('div',{class:'text-sm text-gray-600 mt-1'}, isCup
+          ? 'Send each person their own link. Everyone picks at the same time, on their own phone - there are no turns and nobody has to wait. Picks sync back here automatically.'
+          : 'Send each player their own link. Picks sync back here automatically - each person drafts whenever it’s their turn.')
       ),
       el('button',{class:'btn btn-ghost',onclick:()=>overlay.remove(),'aria-label':'Close'},'✕')
     ),
     el('div',{class:'p-6 space-y-3'},
-      el('div',{class:'flex items-center gap-2 text-sm text-gray-700'}, el('span',{},'You are drafting as:'), roleSel),
+      el('div',{class:'flex items-center gap-2 text-sm text-gray-700'}, el('span',{}, isCup?'You are picking as:':'You are drafting as:'), roleSel),
       ...(others.length ? others.map(linkRow) : [el('div',{class:'text-sm text-gray-500'},'Add more players in Setup to generate their links.')]),
-      el('div',{class:'text-xs text-gray-500 pt-1'}, `Room ${state.roomId} • golf-pick data only, no logins. Anyone with a link can draft as that player.`)
+      el('div',{class:'text-xs text-gray-500 pt-1'}, `Room ${state.roomId} - golf-pick data only, no logins. Anyone with a link can ${isCup?'pick':'draft'} as that person.`)
     )
   );
   overlay.appendChild(card);
@@ -2773,7 +2819,8 @@ function setPrediction(pid,mid,patch){
   const next={...cur,...patch};
   if(patch.winner==='tie') next.margin='Halved';
   state.predictions[pid][mid]=next;
-  persist(); render(); if(state.roomMode)pushRoom();
+  // Own-subtree patch, never a whole-doc write: see pushCupPicks.
+  persist(); render(); if(state.roomMode)pushCupPicks();
 }
 
 // ---------- cup scoring / standings ----------
@@ -2781,6 +2828,41 @@ function allCupMatches(g=state){ const out=[]; (g.sessions||[]).forEach(s=>(s.ma
 function fmtPts(n){ n=Number(n)||0; const w=Math.floor(n); const half=(n-w)>=0.5; return `${w}${half?'½':''}`; }
 function playerName(k,id){ const p=(state.teams[k].players||[]).find(x=>x.id===id); return p?p.name:'—'; }
 function sessionLocked(s){ return s.status!=='draft'; }
+// Who still owes picks for a session. Counts only - never the selections themselves, which
+// stay hidden until the session locks so nobody can copy off the board.
+// A pick counts once a winner is chosen; margin is optional and only earns the bonus point.
+function sessionPickStatus(s){
+  return (state.participants||[]).map(p=>{
+    const preds=(state.predictions||{})[p.id]||{};
+    let done=0, noMargin=0;
+    s.matches.forEach(m=>{
+      const pr=preds[m.id];
+      if(pr && pr.winner){ done++; if(pr.winner!=='tie' && !pr.margin) noMargin++; }
+    });
+    return { p, done, total:s.matches.length, noMargin, complete:s.matches.length>0 && done===s.matches.length };
+  });
+}
+function pickStatusRow(s){
+  const rows=sessionPickStatus(s);
+  if(!rows.length || !s.matches.length) return null;
+  // No pairings yet means nothing to pick, so "0/5 everyone" would just be noise.
+  if(!s.matches.some(m=>(m.teamA||[]).filter(Boolean).length)) return null;
+  const inCount=rows.filter(r=>r.complete).length;
+  const anyStar=rows.some(r=>r.complete && r.noMargin);
+  const wrap=el('div',{class:'mt-2'});
+  wrap.appendChild(el('div',{class:'flex flex-wrap items-center gap-1'},
+    el('span',{class:'text-xs text-gray-500 mr-1'}, `Picks in: ${inCount}/${rows.length}`),
+    ...rows.map(r=>el('span',{class:'pill',
+      style: r.complete ? 'background:#dcfce7;color:#166534;border-color:#bbf7d0'
+           : r.done>0   ? 'background:#fef3c7;color:#92400e;border-color:#fde68a'
+                        : 'background:#f3f4f6;color:#6b7280;border-color:#e5e7eb'},
+      `${r.p.name||'(unnamed)'} ${r.done}/${r.total}${r.complete&&r.noMargin?' *':''}`))
+  ));
+  // Tooltips do not exist on a phone, so spell the asterisk out, and only when it is used.
+  if(anyStar) wrap.appendChild(el('div',{class:'text-xs text-gray-400 mt-1'},
+    '* all picked, but some have no margin set - those forfeit the bonus point'));
+  return wrap;
+}
 function cupStandings(g=state){
   let usa=0,intl=0,done=0; const created=allCupMatches(g);
   created.forEach(({match})=>{
@@ -3058,8 +3140,26 @@ function renderCupHub(){
       el('button',{class:'btn btn-ghost', disabled:state.syncSource==='manual', onclick:()=>loadCupFeed({})}, '↻ Sync ESPN')
     )
   ));
+  const nudge=pickNudgeCard(); if(nudge) wrap.appendChild(nudge);
   state.sessions.forEach(s=>wrap.appendChild(hubSessionCard(s,host,actor)));
   return wrap;
+}
+// Top-of-hub summary so the host can see who to chase without scrolling every session.
+// Only covers sessions that are open AND have pairings - a TBD session cannot be picked yet.
+function pickNudgeCard(){
+  const open=state.sessions.filter(s=>s.status==='draft' && s.matches.some(m=>(m.teamA||[]).filter(Boolean).length));
+  if(!open.length || !(state.participants||[]).length) return null;
+  const card=el('div',{class:'card p-4 mb-5'}, el('h3',{class:'font-serif text-lg text-masters-800'},'Pick status'));
+  open.forEach(s=>{
+    const waiting=sessionPickStatus(s).filter(r=>!r.complete);
+    card.appendChild(el('div',{class:'text-sm mt-1'},
+      el('span',{class:'font-semibold text-masters-800'}, s.name+': '),
+      waiting.length
+        ? el('span',{class:'text-gray-700'}, 'waiting on '+waiting.map(r=>`${r.p.name||'(unnamed)'} (${r.done}/${r.total})`).join(', '))
+        : el('span',{class:'text-green-700 font-medium'}, 'all picks in')
+    ));
+  });
+  return card;
 }
 function hubSessionCard(s, host, actor){
   const statusPill = s.status==='final'?el('span',{class:'pill pill-green'},'Final')
@@ -3080,7 +3180,8 @@ function hubSessionCard(s, host, actor){
       el('div',{}, el('h3',{class:'font-serif text-xl text-masters-800'}, s.name), el('div',{class:'text-xs text-gray-500'}, `${s.matches.length} × ${MATCH_TYPE_LABEL[s.type]}`)),
       statusPill
     ),
-    controls
+    controls,
+    pickStatusRow(s)
   );
   s.matches.forEach((m,i)=>card.appendChild(hubMatchRow(s,m,i,host,actor)));
   return card;
@@ -3102,8 +3203,12 @@ function hubMatchRow(s,m,i,host,actor){
     ? el('span',{class:'pill pill-green'}, m.result.winner==='tie'?'Halved':`${m.result.winner==='usa'?'USA':t.teamB} ${m.result.margin||''}`)
     : m.status==='inprogress'? el('span',{class:'pill', style:'background:#fef3c7;color:#92400e;border-color:#fde68a'},'In progress') : null;
   const pred = actor ? ((state.predictions[actor]||{})[m.id]||{}) : {};
+  const hasPairing = (m.teamA||[]).filter(Boolean).length || (m.teamB||[]).filter(Boolean).length;
   let pickArea;
   if(!actor){ pickArea=el('span',{class:'text-xs text-gray-400'},'—'); }
+  // Nothing to pick between until the pairing exists. Offering a winner control on
+  // "TBD vs TBD" just buries the session that is actually open.
+  else if(!hasPairing){ pickArea=el('span',{class:'text-xs text-gray-400'},'Pairing TBD'); }
   else if(locked){
     pickArea = pred.winner
       ? el('span',{class:'text-xs '+(final?(pickCorrect(m,pred)?'text-green-700 font-semibold':'text-red-600'):'text-gray-600')}, `Your pick: ${predLabel(pred)}${final?(pickCorrect(m,pred)?` ✓ +${pickPoints(m,pred)}`:' ✗'):''}`)

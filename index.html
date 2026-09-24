@@ -2765,7 +2765,16 @@ function buildCupSessions() {
   persist(); if (state.roomMode) pushRoom();
 }
 function isCupHost() { return state.mode==='teamcup' && (!state.roomMode || state.roomRole===state.hostId); }
-function activeActor() { return state.roomMode ? state.roomRole : cupActor; }
+// Who this device is picking for. openGame() seeds cupActor, but a plain page load (or a
+// hard refresh) boots straight from localStorage and never goes through it - which left
+// cupActor null, so every match rendered "-" with no pick control until you nudged the
+// dropdown. Default it here so picking works the moment the page opens.
+function activeActor() {
+  if (state.roomMode) return state.roomRole;
+  const known = (state.participants||[]).some(p => p.id === cupActor);
+  if (!known) cupActor = (state.participants||[])[0]?.id || null;
+  return cupActor;
+}
 
 // ---------- cup editors (setup + host) ----------
 function setTeamName(k,v){ state.teams[k].name=v; persist(); if(state.roomMode)pushRoom(); }
@@ -2818,6 +2827,8 @@ function setPrediction(pid,mid,patch){
   const cur=state.predictions[pid][mid]||{winner:null,margin:null};
   const next={...cur,...patch};
   if(patch.winner==='tie') next.margin='Halved';
+  // Tapping the selected side again clears the pick; leave no orphan margin behind.
+  if('winner' in patch && patch.winner===null) next.margin=null;
   state.predictions[pid][mid]=next;
   // Own-subtree patch, never a whole-doc write: see pushCupPicks.
   persist(); render(); if(state.roomMode)pushCupPicks();
@@ -3204,21 +3215,45 @@ function hubMatchRow(s,m,i,host,actor){
     : m.status==='inprogress'? el('span',{class:'pill', style:'background:#fef3c7;color:#92400e;border-color:#fde68a'},'In progress') : null;
   const pred = actor ? ((state.predictions[actor]||{})[m.id]||{}) : {};
   const hasPairing = (m.teamA||[]).filter(Boolean).length || (m.teamB||[]).filter(Boolean).length;
+  // Tap the side you think wins. Buttons carry the actual pairing, so there is nothing to
+  // decode - a "- pick -" dropdown made you map an abstract USA/International back onto the
+  // names on the row above it.
+  const sideNames=(teamKey)=>{
+    const names=(teamKey==='usa'?m.teamA:m.teamB).filter(Boolean).map(id=>playerName(teamKey,id));
+    return names.length?names.join(' / '):(teamKey==='usa'?'USA':t.teamB);
+  };
+  const pickBtn=(side,label)=>{
+    const on = pred.winner===side;
+    const col = side==='tie' ? '#6b7280' : t.teamColors[side];
+    return el('button',{ class:'btn '+(on?'':'btn-ghost'),
+      style:'padding:6px 12px;font-size:13px;'+(on?`background:${col};border-color:${col};color:#fff;font-weight:600`:''),
+      onclick:()=>setPrediction(actor,m.id,{winner: on?null:side, ...(side==='tie'?{}:{})}) }, label);
+  };
   let pickArea;
-  if(!actor){ pickArea=el('span',{class:'text-xs text-gray-400'},'—'); }
+  if(!actor){
+    pickArea=el('span',{class:'text-xs text-gray-500'},'Add people in Setup, then pick here.');
+  }
   // Nothing to pick between until the pairing exists. Offering a winner control on
   // "TBD vs TBD" just buries the session that is actually open.
   else if(!hasPairing){ pickArea=el('span',{class:'text-xs text-gray-400'},'Pairing TBD'); }
   else if(locked){
     pickArea = pred.winner
       ? el('span',{class:'text-xs '+(final?(pickCorrect(m,pred)?'text-green-700 font-semibold':'text-red-600'):'text-gray-600')}, `Your pick: ${predLabel(pred)}${final?(pickCorrect(m,pred)?` ✓ +${pickPoints(m,pred)}`:' ✗'):''}`)
-      : el('span',{class:'text-xs text-gray-400'}, final?'No pick':'Locked — no pick');
+      : el('span',{class:'text-xs text-gray-400'}, final?'No pick':'Locked - no pick');
   } else {
-    pickArea = el('div',{class:'flex items-center gap-1 flex-wrap'},
-      el('span',{class:'text-xs text-gray-500'},'Your pick:'),
-      winnerSelect(pred.winner, (v)=>setPrediction(actor,m.id,{winner:v}), false),
-      marginSelect(pred.margin, pred.winner, (v)=>setPrediction(actor,m.id,{margin:v}), false)
+    const row=el('div',{class:'flex items-center gap-2 flex-wrap'},
+      el('span',{class:'text-xs text-gray-500'}, pred.winner?'Your pick:':'Tap the winner:'),
+      pickBtn('usa', sideNames('usa')),
+      pickBtn('tie', 'Halved'),
+      pickBtn('intl', sideNames('intl'))
     );
+    // Margin is worth a bonus point, so only ask for it once a side is chosen.
+    if(pred.winner && pred.winner!=='tie'){
+      row.appendChild(el('span',{class:'text-xs text-gray-500 ml-1'},'by'));
+      row.appendChild(marginSelect(pred.margin, pred.winner, (v)=>setPrediction(actor,m.id,{margin:v}), false));
+      if(!pred.margin) row.appendChild(el('span',{class:'text-xs text-gray-400'},'optional, +1 if exact'));
+    }
+    pickArea=row;
   }
   let resultEditor=null;
   if(showEditors){
@@ -3233,8 +3268,9 @@ function hubMatchRow(s,m,i,host,actor){
   return el('div',{class:'border-t border-gray-100 py-2'},
     el('div',{class:'flex flex-wrap items-center justify-between gap-2'},
       el('div',{class:'flex items-center gap-2'}, el('span',{class:'text-xs text-gray-400 w-4'}, String(i+1)), pairing),
-      el('div',{class:'flex items-center gap-2 flex-wrap'}, resultBadge, pickArea)
+      resultBadge
     ),
+    el('div',{class:'mt-1 pl-6'}, pickArea),
     resultEditor?el('div',{class:'mt-2 pl-6'},resultEditor):null
   );
 }

@@ -17,7 +17,7 @@
       "day": 1,
       "order": 1,
       "type": "fourballs",
-      "status": "scheduled",
+      "status": "inprogress",
       "date": "2026-09-24T16:35Z",
       "matches": [
         {
@@ -34,7 +34,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-24T16:35Z"
         },
         {
@@ -51,7 +51,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-24T16:53Z"
         },
         {
@@ -68,7 +68,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-24T17:11Z"
         },
         {
@@ -85,7 +85,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-24T17:29Z"
         },
         {
@@ -102,7 +102,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-24T17:47Z"
         }
       ]
@@ -114,5 +114,5 @@
   },
   "source": "espn-core",
   "year": 2026,
-  "fetched_at": "2026-09-24T13:08:33.351121Z"
+  "fetched_at": "2026-09-24T18:27:06.351315Z"
 }

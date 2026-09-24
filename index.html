@@ -683,6 +683,36 @@ function listGames() {
     return raw ? JSON.parse(raw) : {};
   } catch (e) { return {}; }
 }
+// The saved game already bound to a shared room, if any. Prefers the original entry (the
+// one the host created) over a 'g(c)_room_' copy made by joining, since the original is
+// where this device's phone numbers are keyed.
+function gameIdForRoom(roomId, isCup) {
+  const hits = Object.values(listGames()).filter(g => g && g.roomId === roomId && (g.mode === 'teamcup') === isCup);
+  hits.sort((a,b) => (/_room_/.test(a.gameId)?1:0) - (/_room_/.test(b.gameId)?1:0) || String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')));
+  return hits[0]?.gameId || null;
+}
+// One entry per room. Collapses duplicates left by the old join path, keeping the entry
+// gameIdForRoom would pick; if the open game was a dropped copy, it moves onto the keeper
+// (its room data is the same room, and is re-synced from Firebase anyway).
+function dedupeRoomGames() {
+  const games = listGames(); let dropped = 0;
+  const rooms = new Set(Object.values(games).filter(g => g && g.roomId).map(g => `${g.mode==='teamcup'?1:0}|${g.roomId}`));
+  rooms.forEach(k => {
+    const [cup, roomId] = k.split('|');
+    const keep = gameIdForRoom(roomId, cup === '1');
+    Object.values(games).forEach(g => {
+      if (g && g.roomId === roomId && (g.mode === 'teamcup') === (cup === '1') && g.gameId !== keep) {
+        if (state.gameId === g.gameId) state.gameId = keep;
+        delete games[g.gameId]; dropped++;
+      }
+    });
+  });
+  if (dropped) {
+    try { localStorage.setItem(GAMES_KEY, JSON.stringify(games)); } catch (_) {}
+    try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (_) {}
+    if (state.gameId && games[state.gameId]) persist();
+  }
+}
 function deleteGame(id) {
   const games = listGames();
   if (!games[id]) return;
@@ -2504,7 +2534,9 @@ async function joinRoom(roomId, asUserId) {
   try { doc = await roomGet(roomId); } catch (e) { toast('Could not load that room: ' + e.message); return false; }
   if (!doc) { toast('That draft room was not found.'); return false; }
   if (doc.mode === 'teamcup' || doc.cupType) {
-    const roomGameId = 'gc_room_' + roomId;
+    // Reuse the game this device already holds for the room (e.g. the host opening their
+    // own link) - minting 'gc_room_<id>' every time listed the same game twice on Home.
+    const roomGameId = gameIdForRoom(roomId, true) || ('gc_room_' + roomId);
     state = { ...DEFAULT_STATE(), mode:'teamcup', gameId:roomGameId, cupType:doc.cupType, tournamentId:doc.cupType };
     state.roomId = roomId; state.roomMode = true;
     state.roomRole = asUserId || doc.hostId || doc.participants?.[0]?.id || null;
@@ -2517,7 +2549,7 @@ async function joinRoom(roomId, asUserId) {
   }
   // The room is always its own game entry — never overwrite whatever game the joiner had
   // open. Reset locally-synced scores only when switching IN from a different game.
-  const roomGameId = 'g_room_' + roomId;
+  const roomGameId = gameIdForRoom(roomId, false) || ('g_room_' + roomId);
   if (state.gameId !== roomGameId) { state.scores = {}; state.lastSync = null; state.eventState = null; }
   state.gameId = roomGameId;
   state.roomId = roomId;
@@ -3762,6 +3794,7 @@ window.addEventListener('hashchange', () => {
 // boot so games the user hasn't opened recently are fixed in place rather than only
 // when next loaded.
 repairAllSavedGames();
+dedupeRoomGames();
 
 render();
 

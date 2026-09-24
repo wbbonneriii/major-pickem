@@ -193,7 +193,10 @@ const CUP_TEMPLATES = {
     id:'presidents', name:'Presidents Cup', shortName:'Presidents Cup',
     teamA:'United States', teamB:'International',
     color:'#0a2240', accent:'#b1121b',
-    teamColors:{ usa:'#0a3161', intl:'#334155' },
+    // Navy vs slate read as the same colour at a glance, which made the two sides of a match
+    // impossible to tell apart. Amber against navy is the most separable pair there is and
+    // stays legible for the red/green colourblind. Used for pairings, buttons and the scoreboard.
+    teamColors:{ usa:'#0a3161', intl:'#b45309' },
     defaultYear:2026, toWin:15.5, total:30, retainOnTie:false,
     // Standard 30-match skeleton (order/AM-PM can vary by edition — host can reorder/retype).
     sessions:[
@@ -3209,7 +3212,9 @@ function hubMatchRow(s,m,i,host,actor){
     const names=(teamKey==='usa'?m.teamA:m.teamB).filter(Boolean).map(id=>playerName(teamKey,id));
     return el('span',{class:'text-sm', style:`color:${t.teamColors[teamKey]};font-weight:600`}, names.length?names.join(' / '):'TBD');
   };
-  const pairing=el('div',{class:'flex items-center gap-2 flex-wrap'}, teamPairing('usa'), el('span',{class:'text-xs text-gray-400'},'vs'), teamPairing('intl'));
+  // min-w-0 on both this and its parent: a flex item defaults to min-width:auto, which
+  // refuses to shrink below its content and pushes a long pairing off a phone screen.
+  const pairing=el('div',{class:'flex items-center gap-2 flex-wrap min-w-0'}, teamPairing('usa'), el('span',{class:'text-xs text-gray-400'},'vs'), teamPairing('intl'));
   const resultBadge = final
     ? el('span',{class:'pill pill-green'}, m.result.winner==='tie'?'Halved':`${m.result.winner==='usa'?'USA':t.teamB} ${m.result.margin||''}`)
     : m.status==='inprogress'? el('span',{class:'pill', style:'background:#fef3c7;color:#92400e;border-color:#fde68a'},'In progress') : null;
@@ -3222,12 +3227,19 @@ function hubMatchRow(s,m,i,host,actor){
     const names=(teamKey==='usa'?m.teamA:m.teamB).filter(Boolean).map(id=>playerName(teamKey,id));
     return names.length?names.join(' / '):(teamKey==='usa'?'USA':t.teamB);
   };
+  // Each side keeps its team colour whether or not it is chosen, so you can tell the two
+  // apart before you pick, not only after. Unselected is a light wash of the same colour;
+  // selected fills solid. The 8-digit hex suffixes are alpha (14 = ~8%, 55 = ~33%).
   const pickBtn=(side,label)=>{
     const on = pred.winner===side;
-    const col = side==='tie' ? '#6b7280' : t.teamColors[side];
-    return el('button',{ class:'btn '+(on?'':'btn-ghost'),
-      style:'padding:6px 12px;font-size:13px;'+(on?`background:${col};border-color:${col};color:#fff;font-weight:600`:''),
-      onclick:()=>setPrediction(actor,m.id,{winner: on?null:side, ...(side==='tie'?{}:{})}) }, label);
+    const col = side==='tie' ? '#57606a' : t.teamColors[side];
+    const base = 'padding:10px 14px;font-size:15px;line-height:1.2;border-width:2px;border-style:solid;border-radius:8px;';
+    return el('button',{
+      style: base + (on
+        ? `background:${col};border-color:${col};color:#fff;font-weight:700;box-shadow:0 1px 3px ${col}66;`
+        : `background:${col}14;border-color:${col}55;color:${col};font-weight:600;`),
+      onclick:()=>setPrediction(actor,m.id,{winner: on?null:side})
+    }, on ? '✓ ' + label : label);
   };
   let pickArea;
   if(!actor){
@@ -3242,7 +3254,7 @@ function hubMatchRow(s,m,i,host,actor){
       : el('span',{class:'text-xs text-gray-400'}, final?'No pick':'Locked - no pick');
   } else {
     const row=el('div',{class:'flex items-center gap-2 flex-wrap'},
-      el('span',{class:'text-xs text-gray-500'}, pred.winner?'Your pick:':'Tap the winner:'),
+      el('span',{class:'text-xs text-gray-500 w-full sm:w-auto'}, pred.winner?'Your pick:':'Tap the winner:'),
       pickBtn('usa', sideNames('usa')),
       pickBtn('tie', 'Halved'),
       pickBtn('intl', sideNames('intl'))
@@ -3267,7 +3279,7 @@ function hubMatchRow(s,m,i,host,actor){
   }
   return el('div',{class:'border-t border-gray-100 py-2'},
     el('div',{class:'flex flex-wrap items-center justify-between gap-2'},
-      el('div',{class:'flex items-center gap-2'}, el('span',{class:'text-xs text-gray-400 w-4'}, String(i+1)), pairing),
+      el('div',{class:'flex items-center gap-2 min-w-0 flex-1'}, el('span',{class:'text-xs text-gray-400 w-4 shrink-0'}, String(i+1)), pairing),
       resultBadge
     ),
     el('div',{class:'mt-1 pl-6'}, pickArea),

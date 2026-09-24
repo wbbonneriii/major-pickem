@@ -65,10 +65,10 @@
             "Nico Echavarria"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "usa",
+            "margin": "4 & 3"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-24T17:11Z"
         },
         {
@@ -109,10 +109,10 @@
     }
   ],
   "cupScore": {
-    "usa": 0.0,
+    "usa": 1.0,
     "intl": 0.0
   },
   "source": "espn-core",
   "year": 2026,
-  "fetched_at": "2026-09-24T18:27:06.351315Z"
+  "fetched_at": "2026-09-24T21:41:31.301544Z"
 }

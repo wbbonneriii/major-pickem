@@ -2853,7 +2853,27 @@ function setPrediction(pid,mid,patch){
 function allCupMatches(g=state){ const out=[]; (g.sessions||[]).forEach(s=>(s.matches||[]).forEach(m=>out.push({session:s,match:m}))); return out; }
 function fmtPts(n){ n=Number(n)||0; const w=Math.floor(n); const half=(n-w)>=0.5; return `${w}${half?'½':''}`; }
 function playerName(k,id){ const p=(state.teams[k].players||[]).find(x=>x.id===id); return p?p.name:'—'; }
-function sessionLocked(s){ return s.status!=='draft'; }
+// Earliest tee time in a session, in ms, or null if the feed has not supplied one.
+function sessionStartMs(s){
+  const stamps=[s.date, ...(s.matches||[]).map(m=>m.date)]
+    .filter(Boolean).map(d=>Date.parse(d)).filter(n=>!isNaN(n));
+  return stamps.length ? Math.min(...stamps) : null;
+}
+// Picks close when the first group tees off. Do NOT rely on the feed flipping the session
+// to In Progress: GitHub throttles the updater to hours, so that flag can arrive long after
+// play starts and picks would stay open while people watch. The clock is the real gate.
+// A session the host has pinned ("Ignore ESPN") keeps manual control, which is the escape
+// hatch for a rain delay or a wrong tee time.
+function sessionAutoLockMs(s){ return s.source==='manual' ? null : sessionStartMs(s); }
+function sessionLocked(s){
+  if(s.status!=='draft') return true;
+  const t=sessionAutoLockMs(s);
+  return t!=null && Date.now()>=t;
+}
+function fmtTeeTime(ms){
+  try{ return new Date(ms).toLocaleString(undefined,{weekday:'short',hour:'numeric',minute:'2-digit'}); }
+  catch(_){ return new Date(ms).toISOString(); }
+}
 // Who still owes picks for a session. Counts only - never the selections themselves, which
 // stay hidden until the session locks so nobody can copy off the board.
 // A pick counts once a winner is chosen; margin is optional and only earns the bonus point.
@@ -2975,6 +2995,7 @@ function mergeCupFeed(doc){
     if(fs.name) ss.name=fs.name;
     if(fs.day) ss.day=fs.day;
     if(fs.type) ss.type=fs.type;
+    if(fs.date) ss.date=fs.date;   // tee time, used to lock picks on the clock
     (fs.matches||[]).forEach(fm=>{
       let mm = ss.matches.find(m=>m.espnId && m.espnId===fm.espnId)
             || ss.matches.find(m=>!m.espnId && m.source!=='manual' && !(m.teamA||[]).filter(Boolean).length && !(m.teamB||[]).filter(Boolean).length);
@@ -2985,6 +3006,7 @@ function mergeCupFeed(doc){
       mm.teamB = (fm.teamB||[]).map(n=>ensureCupPlayer('intl',n)).filter(Boolean);
       mm.result = { winner:(fm.result&&fm.result.winner)||null, margin:(fm.result&&fm.result.margin)||null };
       mm.status = fm.status || 'scheduled';
+      if(fm.date) mm.date = fm.date;
     });
     recomputeSessionStatus(ss);
     claimed.push(ss);
@@ -3024,6 +3046,23 @@ function syncCupPolling(){
   const on = state.mode==='teamcup' && state.syncSource==='auto' && (r==='cuphub'||r==='cupscore');
   if(on && !cupFeedTimer) cupFeedTimer=setInterval(cupFeedPollOnce, 60000);
   else if(!on && cupFeedTimer){ clearInterval(cupFeedTimer); cupFeedTimer=null; }
+  syncCupLockTicker();
+}
+// A session locks on the clock, so an open page has to notice the moment it passes without
+// anyone reloading. Re-render only when the locked/unlocked picture actually changes -
+// a blind repaint every few seconds would fight whoever is mid-pick.
+let cupLockTimer=null, cupLockSig=null;
+function cupLockSignature(){ return (state.sessions||[]).map(s=>sessionLocked(s)?'1':'0').join(''); }
+function cupLockTick(){
+  if(state.mode!=='teamcup'){ cupLockSig=null; return; }
+  const sig=cupLockSignature();
+  if(cupLockSig===null){ cupLockSig=sig; return; }
+  if(sig!==cupLockSig){ cupLockSig=sig; render(); toast('Play has started - picks are locked.'); }
+}
+function syncCupLockTicker(){
+  const on = state.mode==='teamcup' && currentRoute()!=='home';
+  if(on && !cupLockTimer){ cupLockSig=cupLockSignature(); cupLockTimer=setInterval(cupLockTick, 15000); }
+  else if(!on && cupLockTimer){ clearInterval(cupLockTimer); cupLockTimer=null; cupLockSig=null; }
 }
 
 // ---------- cup room codec (branched from serializeRoomDoc/applyRoomDoc) ----------
@@ -3202,8 +3241,10 @@ function pickNudgeCard(){
   return card;
 }
 function hubSessionCard(s, host, actor){
+  const lockAt = sessionAutoLockMs(s);
+  const isLocked = sessionLocked(s);
   const statusPill = s.status==='final'?el('span',{class:'pill pill-green'},'Final')
-    : s.status==='inprogress'?el('span',{class:'pill', style:'background:#fef3c7;color:#92400e;border-color:#fde68a'},'In Progress • picks locked')
+    : isLocked?el('span',{class:'pill', style:'background:#fef3c7;color:#92400e;border-color:#fde68a'},'In Progress • picks locked')
     : el('span',{class:'pill'},'Open for picks');
   const controls = host? el('div',{class:'flex flex-wrap items-center gap-2 mt-1'},
     el('span',{class:'text-xs text-gray-500'},'Session:'),
@@ -3213,11 +3254,20 @@ function hubSessionCard(s, host, actor){
       ? el('button',{class:'btn '+(hostEditMode?'btn-primary':'btn-ghost'), style:'padding:3px 9px;font-size:12px',
           title:'ESPN fills pairings and results. Turn this on only to correct a late or wrong feed.',
           onclick:()=>{ hostEditMode=!hostEditMode; render(); }}, hostEditMode?'Done editing':'Fix pairings/results')
+      : null,
+    // The clock has locked this but the stored status is still Open, so the Open button
+    // would look live and do nothing. Say where the real switch is.
+    (isLocked && s.status==='draft')
+      ? el('span',{class:'text-xs text-gray-500 w-full'},'Locked automatically at first tee. Tick Ignore ESPN to reopen picks.')
       : null
   ):null;
   const card=el('div',{class:'card p-4 mb-4'},
     el('div',{class:'flex flex-wrap items-center justify-between gap-2'},
-      el('div',{}, el('h3',{class:'font-serif text-xl text-masters-800'}, s.name), el('div',{class:'text-xs text-gray-500'}, `${s.matches.length} × ${MATCH_TYPE_LABEL[s.type]}`)),
+      el('div',{},
+        el('h3',{class:'font-serif text-xl text-masters-800'}, s.name),
+        el('div',{class:'text-xs text-gray-500'},
+          `${s.matches.length} × ${MATCH_TYPE_LABEL[s.type]}`
+          + (lockAt && !isLocked ? ` • locks at first tee, ${fmtTeeTime(lockAt)}` : ''))),
       statusPill
     ),
     controls,

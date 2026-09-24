@@ -3004,8 +3004,14 @@ function mergeCupFeed(doc){
       mm.espnId = fm.espnId || mm.espnId;
       mm.teamA = (fm.teamA||[]).map(n=>ensureCupPlayer('usa',n)).filter(Boolean);
       mm.teamB = (fm.teamB||[]).map(n=>ensureCupPlayer('intl',n)).filter(Boolean);
-      mm.result = { winner:(fm.result&&fm.result.winner)||null, margin:(fm.result&&fm.result.margin)||null };
-      mm.status = fm.status || 'scheduled';
+      // The live scoreboard (applyLiveResults) may already know more than this committed
+      // feed, which GitHub refreshes only every few hours. Never let the older file roll a
+      // finished match back to "in progress".
+      const feedAt = Date.parse(doc.fetched_at||'') || 0;
+      if(!(mm.liveAt && mm.liveAt > feedAt)){
+        mm.result = { winner:(fm.result&&fm.result.winner)||null, margin:(fm.result&&fm.result.margin)||null };
+        mm.status = fm.status || 'scheduled';
+      }
       if(fm.date) mm.date = fm.date;
     });
     recomputeSessionStatus(ss);
@@ -3036,8 +3042,54 @@ async function loadCupFeed({silent=false}={}){
   try{ const r=await fetch(url,{cache:'no-cache'}); if(!r.ok){ if(!silent)toast('No ESPN feed available for this cup yet.'); return false; } doc=await r.json(); }
   catch(e){ if(!silent)toast('ESPN feed load failed.'); return false; }
   const ok=mergeCupFeed(doc);
+  if(ok) await applyLiveResults();
   if(ok){ persist(); if(state.roomMode)pushRoom(); render(); if(!silent)toast('Synced pairings & results from ESPN.'); }
   return ok;
+}
+// Live results, straight from ESPN's scoreboard in the browser. The committed feed carries
+// pairings and tee times, but GitHub runs its updater every 3-5 hours whatever the cron
+// says, so results lagged by hours. This is ONE request (all matches, status + score,
+// CORS-open) keyed by the same competition id the feed stores as espnId. It has no player
+// names, so it only updates matches the feed already created - pairings still come from the
+// feed. A failure changes nothing: the committed feed's results stand.
+async function applyLiveResults(){
+  if(!state.espnEventId || state.syncSource!=='auto') return false;
+  let doc;
+  try{
+    const r=await fetch(`https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard?event=${state.espnEventId}`,{cache:'no-store'});
+    if(!r.ok) return false; doc=await r.json();
+  }catch(e){ return false; }
+  const ev=(doc.events||[]).find(e=>String(e.id)===String(state.espnEventId));
+  if(!ev) return false;
+  const now=Date.now(); let changed=false;
+  const byId=new Map((ev.competitions||[]).map(c=>[String(c.id),c]));
+  state.sessions.forEach(s=>{
+    if(s.source==='manual') return;
+    s.matches.forEach(m=>{
+      if(!m.espnId || m.source==='manual') return;
+      const c=byId.get(String(m.espnId)); if(!c) return;
+      const st=(c.status&&c.status.type&&c.status.type.state)||'';
+      const status={pre:'scheduled',in:'inprogress',post:'final'}[st];
+      if(!status) return;
+      let result={winner:null,margin:null};
+      if(status==='final'){
+        const cps=c.competitors||[];
+        const side=cp=>/^(usa|us|united states)$/i.test((cp.team&&(cp.team.abbreviation||cp.team.displayName))||'')?'usa':'intl';
+        const win=cps.find(cp=>cp.winner===true);
+        const halved=cps.some(cp=>/^(halved|as|a\/s|tied)$/i.test(String(cp.score||'').trim()));
+        if(halved || (!win && cps.length===2)) result={winner:'tie',margin:'Halved'};
+        else if(win && String(win.score||'').trim()) result={winner:side(win),margin:String(win.score).trim()};
+        else return;   // final but no readable margin yet - leave the feed's answer alone
+      }
+      if(m.status!==status || m.result.winner!==result.winner || m.result.margin!==result.margin){
+        m.status=status; m.result=result; changed=true;
+      }
+      m.liveAt=now;
+    });
+    recomputeSessionStatus(s);
+  });
+  state.lastLiveAt=new Date(now).toISOString();
+  return changed;
 }
 let cupFeedTimer=null;
 async function cupFeedPollOnce(){ if(state.mode!=='teamcup'||state.syncSource!=='auto')return; await loadCupFeed({silent:true}); }
@@ -3132,7 +3184,8 @@ function renderCupSetup(){
       el('div',{class:'flex items-center gap-2'}, el('span',{class:'text-sm text-gray-600'},'Event ID:'), el('input',{type:'text', style:'max-width:160px', value:state.espnEventId||'', placeholder:'auto-discover', onchange:(e)=>{state.espnEventId=e.target.value.trim()||null;persist();}})),
       el('button',{class:'btn btn-ghost', disabled:state.syncSource==='manual', onclick:()=>loadCupFeed({})}, '↻ Sync from ESPN now')
     ),
-    state.lastFeedAt ? el('div',{class:'text-xs text-gray-500 mt-2'}, `Last synced ${new Date(state.lastFeedAt).toLocaleString()}`) : null
+    state.lastFeedAt ? el('div',{class:'text-xs text-gray-500 mt-2'}, `Pairings updated ${new Date(state.lastFeedAt).toLocaleString()}`
+      + (state.lastLiveAt ? ` • live results checked ${new Date(state.lastLiveAt).toLocaleTimeString()}` : '')) : null
   ));
   wrap.appendChild(el('div',{class:'card p-4 mb-5 flex flex-wrap items-center gap-2'},
     el('span',{class:'text-sm text-gray-600 mr-1'},'Year:'),

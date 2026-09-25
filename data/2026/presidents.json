@@ -127,10 +127,10 @@
             "Corey Conners"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "intl",
+            "margin": "1 Up"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-25T18:05Z"
         },
         {
@@ -144,10 +144,10 @@
             "Sungjae Im"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "intl",
+            "margin": "3 & 2"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-25T18:19Z"
         },
         {
@@ -198,7 +198,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-25T19:01Z"
         }
       ]
@@ -206,9 +206,9 @@
   ],
   "cupScore": {
     "usa": 3.0,
-    "intl": 2.0
+    "intl": 4.0
   },
   "source": "espn-core",
   "year": 2026,
-  "fetched_at": "2026-09-25T19:05:58.399003Z"
+  "fetched_at": "2026-09-25T22:15:17.298847Z"
 }

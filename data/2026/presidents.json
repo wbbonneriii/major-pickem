@@ -113,7 +113,7 @@
       "day": 2,
       "order": 2,
       "type": "foursomes",
-      "status": "scheduled",
+      "status": "inprogress",
       "date": "2026-09-25T18:05Z",
       "matches": [
         {
@@ -130,7 +130,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-25T18:05Z"
         },
         {
@@ -147,7 +147,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-25T18:19Z"
         },
         {
@@ -164,7 +164,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-25T18:33Z"
         },
         {
@@ -181,7 +181,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-25T18:47Z"
         },
         {
@@ -210,5 +210,5 @@
   },
   "source": "espn-core",
   "year": 2026,
-  "fetched_at": "2026-09-25T00:02:18.059944Z"
+  "fetched_at": "2026-09-25T19:05:58.399003Z"
 }

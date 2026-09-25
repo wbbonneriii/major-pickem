@@ -17,7 +17,7 @@
       "day": 1,
       "order": 1,
       "type": "fourballs",
-      "status": "inprogress",
+      "status": "final",
       "date": "2026-09-24T16:35Z",
       "matches": [
         {
@@ -31,10 +31,10 @@
             "Min Woo Lee"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "usa",
+            "margin": "1 Up"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-24T16:35Z"
         },
         {
@@ -48,10 +48,10 @@
             "Ryo Hisatsune"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "intl",
+            "margin": "3 & 1"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-24T16:53Z"
         },
         {
@@ -82,10 +82,10 @@
             "Ryan Fox"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "usa",
+            "margin": "3 & 2"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-24T17:29Z"
         },
         {
@@ -99,20 +99,116 @@
             "Tom Kim"
           ],
           "result": {
+            "winner": "intl",
+            "margin": "3 & 2"
+          },
+          "status": "final",
+          "date": "2026-09-24T17:47Z"
+        }
+      ]
+    },
+    {
+      "espnId": null,
+      "name": "Friday Foursomes",
+      "day": 2,
+      "order": 2,
+      "type": "foursomes",
+      "status": "scheduled",
+      "date": "2026-09-25T18:05Z",
+      "matches": [
+        {
+          "espnId": "12099",
+          "teamA": [
+            "Scottie Scheffler",
+            "Sam Burns"
+          ],
+          "teamB": [
+            "Nick Taylor",
+            "Corey Conners"
+          ],
+          "result": {
             "winner": null,
             "margin": null
           },
-          "status": "inprogress",
-          "date": "2026-09-24T17:47Z"
+          "status": "scheduled",
+          "date": "2026-09-25T18:05Z"
+        },
+        {
+          "espnId": "12100",
+          "teamA": [
+            "Russell Henley",
+            "Jacob Bridgeman"
+          ],
+          "teamB": [
+            "Hideki Matsuyama",
+            "Sungjae Im"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled",
+          "date": "2026-09-25T18:19Z"
+        },
+        {
+          "espnId": "12101",
+          "teamA": [
+            "Collin Morikawa",
+            "Wyndham Clark"
+          ],
+          "teamB": [
+            "Ryan Fox",
+            "Min Woo Lee"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled",
+          "date": "2026-09-25T18:33Z"
+        },
+        {
+          "espnId": "12102",
+          "teamA": [
+            "Justin Thomas",
+            "Cameron Young"
+          ],
+          "teamB": [
+            "Adam Scott",
+            "Christiaan Bezuidenhout"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled",
+          "date": "2026-09-25T18:47Z"
+        },
+        {
+          "espnId": "12103",
+          "teamA": [
+            "Patrick Cantlay",
+            "Xander Schauffele"
+          ],
+          "teamB": [
+            "Si Woo Kim",
+            "Tom Kim"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled",
+          "date": "2026-09-25T19:01Z"
         }
       ]
     }
   ],
   "cupScore": {
-    "usa": 1.0,
-    "intl": 0.0
+    "usa": 3.0,
+    "intl": 2.0
   },
   "source": "espn-core",
   "year": 2026,
-  "fetched_at": "2026-09-24T21:41:31.301544Z"
+  "fetched_at": "2026-09-25T00:02:18.059944Z"
 }

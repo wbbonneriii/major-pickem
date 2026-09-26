@@ -3014,12 +3014,16 @@ function mergeCupFeed(doc){
   (doc.sessions||[]).forEach((fs,fi)=>{
     let ss = state.sessions.find(s=>s.espnId && s.espnId===fs.name && !usedSess.has(s.id))
           || state.sessions.find(s=>normalizeName(s.name)===normalizeName(fs.name) && !usedSess.has(s.id))
+          // A session the official site published first (mergeOfficialFeed), under a name
+          // ESPN may spell differently. Same format on the same day is the same session.
+          || state.sessions.find(s=>!usedSess.has(s.id) && s.source!=='manual' && s.type===fs.type
+                                 && sameFeedDay(s.date,fs.date) && s.matches.some(m=>m.pgaId && !m.espnId))
           || state.sessions.find(s=>s.type===fs.type && !usedSess.has(s.id) && isBlank(s))
           // Last resort: any untouched slot. The template's type guess is just a guess -
           // the captains re-set the format each edition, so never strand a real session
           // behind a placeholder that happens to be typed differently.
           || state.sessions.find(s=>!usedSess.has(s.id) && isBlank(s));
-    if(!ss){ ss={id:uid('s'),espnId:fs.name,day:fs.day||(fi+1),order:state.sessions.length+1,type:fs.type,name:fs.name,status:'draft',source:'auto',matches:[]}; state.sessions.push(ss); }
+    if(!ss){ ss={id:feedSessionId(fs.name),espnId:fs.name,day:fs.day||(fi+1),order:state.sessions.length+1,type:fs.type,name:fs.name,status:'draft',source:'auto',matches:[]}; state.sessions.push(ss); }
     usedSess.add(ss.id);
     if(ss.source==='manual'){ claimed.push(ss); return; }   // pinned session — feed leaves it alone
     if(!ss.espnId) ss.espnId=fs.name;
@@ -3032,8 +3036,11 @@ function mergeCupFeed(doc){
     if(fs.date) ss.date=fs.date;   // tee time, used to lock picks on the clock
     (fs.matches||[]).forEach(fm=>{
       let mm = ss.matches.find(m=>m.espnId && m.espnId===fm.espnId)
+            // Posted first by the official site: ESPN takes it over IN PLACE, keeping its id,
+            // so picks already made against it survive. Matched on the golfers, not the slot.
+            || ss.matches.find(m=>!m.espnId && m.pgaId && m.source!=='manual' && samePairing(m,fm.teamA,fm.teamB))
             || ss.matches.find(m=>!m.espnId && m.source!=='manual' && !(m.teamA||[]).filter(Boolean).length && !(m.teamB||[]).filter(Boolean).length);
-      if(!mm){ mm={id:uid('m'),espnId:null,teamA:[],teamB:[],result:{winner:null,margin:null},status:'scheduled',source:'auto'}; ss.matches.push(mm); }
+      if(!mm){ mm={id:fm.espnId?'m_e'+fm.espnId:uid('m'),espnId:null,teamA:[],teamB:[],result:{winner:null,margin:null},status:'scheduled',source:'auto'}; ss.matches.push(mm); }
       if(mm.source==='manual') return;             // pinned match — keep host's version
       mm.espnId = fm.espnId || mm.espnId;
       mm.teamA = (fm.teamA||[]).map(n=>ensureCupPlayer('usa',n)).filter(Boolean);
@@ -3068,6 +3075,77 @@ function mergeCupFeed(doc){
   state.lastFeedAt = doc.fetched_at || new Date().toISOString();
   return true;
 }
+// ---------- official-site feed ----------
+// ESPN can lag the captains' announcement by hours (Saturday 2026: pairings on
+// presidentscup.com by 7 PM CT Friday, nothing on ESPN). The official page cannot be read
+// from a browser (no CORS), so the Mac relay (~/major-pickem-alert) scrapes it every few
+// minutes and publishes a feed-shaped doc to Firebase. Matches it adds carry pgaId and a
+// DETERMINISTIC id (m_pga_<n>) so every phone mints the same one; when ESPN catches up,
+// mergeCupFeed claims them in place by golfer names, keeping the id and the picks.
+const sameFeedDay=(a,b)=>!!(a&&b) && String(a).slice(0,10)===String(b).slice(0,10);
+function feedSessionId(name){
+  const base='s_'+normalizeName(name).replace(/ /g,'_');
+  return state.sessions.some(s=>s.id===base) ? uid('s') : base;
+}
+function pairingKeys(names){
+  const n=(names||[]).filter(Boolean).map(normalizeName);
+  return [n.slice().sort().join('|'), n.map(x=>x.split(' ').pop()).sort().join('|')];
+}
+function samePairing(m,A,B){
+  const have=pairingKeys([...(m.teamA||[]).filter(Boolean).map(id=>playerName('usa',id)),
+                          ...(m.teamB||[]).filter(Boolean).map(id=>playerName('intl',id))]);
+  const want=pairingKeys([...(A||[]),...(B||[])]);
+  return !!have[0] && (have[0]===want[0] || have[1]===want[1]);
+}
+function mergeOfficialFeed(doc){
+  if(!doc || doc.cupType!==state.cupType || !Array.isArray(doc.sessions)) return false;
+  const noPairs=m=>!(m.teamA||[]).filter(Boolean).length && !(m.teamB||[]).filter(Boolean).length;
+  const isBlank=s=>s.source!=='manual' && !s.espnId && s.matches.every(m=>m.source!=='manual' && !m.espnId && !m.pgaId && noPairs(m));
+  const used=new Set();
+  doc.sessions.forEach(fs=>{
+    let ss = state.sessions.find(s=>!used.has(s.id) && (s.pgaName===fs.name || normalizeName(s.name)===normalizeName(fs.name)))
+          || state.sessions.find(s=>!used.has(s.id) && s.type===fs.type && sameFeedDay(s.date,fs.date))
+          || state.sessions.find(s=>!used.has(s.id) && s.type===fs.type && isBlank(s))
+          || state.sessions.find(s=>!used.has(s.id) && isBlank(s));
+    if(!ss){ ss={id:feedSessionId(fs.name),day:fs.day||1,order:state.sessions.length+1,type:fs.type,name:fs.name,status:'draft',source:'auto',matches:[]}; state.sessions.push(ss); }
+    used.add(ss.id);
+    if(ss.source==='manual') return;
+    ss.pgaName=fs.name;
+    // Once ESPN has the session it is the authority on name/day/format, as in mergeCupFeed.
+    if(!ss.matches.some(m=>m.espnId)){ ss.name=fs.name; ss.type=fs.type; if(fs.day)ss.day=fs.day; if(fs.date)ss.date=fs.date; }
+    (fs.matches||[]).forEach(fm=>{
+      if(!fm.pgaId || !(fm.teamA||[]).length || !(fm.teamB||[]).length) return;
+      let mm = ss.matches.find(m=>m.pgaId===fm.pgaId)
+            || ss.matches.find(m=>m.source!=='manual' && samePairing(m,fm.teamA,fm.teamB))
+            || ss.matches.find(m=>!m.espnId && !m.pgaId && m.source!=='manual' && noPairs(m));
+      if(!mm){ mm={id:'m_pga_'+fm.pgaId,espnId:null,teamA:[],teamB:[],result:{winner:null,margin:null},status:'scheduled',source:'auto'}; ss.matches.push(mm); }
+      if(mm.source==='manual') return;
+      mm.pgaId=fm.pgaId;
+      if(!mm.date && fm.date) mm.date=fm.date;
+      if(mm.espnId) return;   // ESPN has it: its live scoreboard owns the result from here
+      mm.teamA=fm.teamA.map(n=>ensureCupPlayer('usa',n)).filter(Boolean);
+      mm.teamB=fm.teamB.map(n=>ensureCupPlayer('intl',n)).filter(Boolean);
+      if(fm.date) mm.date=fm.date;
+      mm.status=fm.status||'scheduled';
+      mm.result={ winner:(fm.result&&fm.result.winner)||null, margin:(fm.result&&fm.result.margin)||null };
+    });
+    recomputeSessionStatus(ss);
+  });
+  // Playing order: dated sessions by first tee, undated template placeholders after.
+  const dated=state.sessions.filter(s=>sessionStartMs(s)!=null).sort((a,b)=>sessionStartMs(a)-sessionStartMs(b));
+  state.sessions=[...dated, ...state.sessions.filter(s=>sessionStartMs(s)==null)];
+  state.sessions.forEach((s,i)=>{ s.order=i+1; });
+  state.lastOfficialAt=doc.fetched_at||null;
+  return true;
+}
+async function applyOfficialFeed(){
+  if(!ROOM_ENABLED || state.syncSource!=='auto') return false;
+  try{
+    const r=await fetch(`${FIREBASE_DB_URL.replace(/\/+$/,'')}/rooms/_feed_${state.cupType}_${state.year}.json`,{cache:'no-store'});
+    if(!r.ok) return false;
+    return mergeOfficialFeed(await r.json());
+  }catch(e){ return false; }
+}
 async function loadCupFeed({silent=false}={}){
   if(state.mode!=='teamcup') return false;
   if(state.syncSource==='manual'){ if(!silent)toast('Manual mode — ESPN sync is off for this game.'); return false; }
@@ -3076,7 +3154,8 @@ async function loadCupFeed({silent=false}={}){
   try{ const r=await fetch(url,{cache:'no-cache'}); if(!r.ok){ if(!silent)toast('No ESPN feed available for this cup yet.'); return false; } doc=await r.json(); }
   catch(e){ if(!silent)toast('ESPN feed load failed.'); return false; }
   const ok=mergeCupFeed(doc);
-  if(ok){ await fetchNewPairings(); await applyLiveResults(); }
+  // Official site before ESPN, so ESPN can claim anything the official feed added in this pass.
+  if(ok){ await applyOfficialFeed(); await fetchNewPairings(); await applyLiveResults(); }
   if(ok){ persist(); if(state.roomMode)pushRoom(); render(); if(!silent)toast('Synced pairings & results from ESPN.'); }
   return ok;
 }

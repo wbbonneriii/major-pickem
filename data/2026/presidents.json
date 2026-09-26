@@ -223,10 +223,10 @@
             "Min Woo Lee"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "tie",
+            "margin": "Halved"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-26T12:02Z"
         },
         {
@@ -240,10 +240,10 @@
             "Tom Kim"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "intl",
+            "margin": "2 & 1"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-26T12:20Z"
         },
         {
@@ -257,10 +257,10 @@
             "Corey Conners"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "usa",
+            "margin": "2 & 1"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-26T12:38Z"
         },
         {
@@ -284,10 +284,10 @@
     }
   ],
   "cupScore": {
-    "usa": 3.0,
-    "intl": 7.0
+    "usa": 4.5,
+    "intl": 8.5
   },
   "source": "espn-core",
   "year": 2026,
-  "fetched_at": "2026-09-26T14:24:16.675826Z"
+  "fetched_at": "2026-09-26T17:52:11.138870Z"
 }

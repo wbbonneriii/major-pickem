@@ -288,7 +288,7 @@
       "day": 3,
       "order": 4,
       "type": "foursomes",
-      "status": "inprogress",
+      "status": "final",
       "date": "2026-09-26T18:15Z",
       "matches": [
         {
@@ -302,10 +302,10 @@
             "Tom Kim"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "usa",
+            "margin": "2 & 1"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-26T18:15Z"
         },
         {
@@ -319,10 +319,10 @@
             "Corey Conners"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "intl",
+            "margin": "1 Up"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-26T18:29Z"
         },
         {
@@ -336,10 +336,10 @@
             "Sungjae Im"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "usa",
+            "margin": "6 & 4"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-26T18:43Z"
         },
         {
@@ -353,20 +353,20 @@
             "Min Woo Lee"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "intl",
+            "margin": "3 & 2"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-26T18:57Z"
         }
       ]
     }
   ],
   "cupScore": {
-    "usa": 5.5,
-    "intl": 8.5
+    "usa": 7.5,
+    "intl": 10.5
   },
   "source": "espn-core",
   "year": 2026,
-  "fetched_at": "2026-09-26T20:33:47.853739Z"
+  "fetched_at": "2026-09-26T23:07:51.602896Z"
 }

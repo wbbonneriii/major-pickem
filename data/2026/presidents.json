@@ -209,7 +209,7 @@
       "day": 3,
       "order": 3,
       "type": "fourballs",
-      "status": "inprogress",
+      "status": "final",
       "date": "2026-09-26T12:02Z",
       "matches": [
         {
@@ -274,20 +274,99 @@
             "Ryo Hisatsune"
           ],
           "result": {
+            "winner": "usa",
+            "margin": "2 & 1"
+          },
+          "status": "final",
+          "date": "2026-09-26T12:56Z"
+        }
+      ]
+    },
+    {
+      "espnId": null,
+      "name": "Saturday Afternoon Foursomes",
+      "day": 3,
+      "order": 4,
+      "type": "foursomes",
+      "status": "inprogress",
+      "date": "2026-09-26T18:15Z",
+      "matches": [
+        {
+          "espnId": "12108",
+          "teamA": [
+            "Patrick Cantlay",
+            "Xander Schauffele"
+          ],
+          "teamB": [
+            "Si Woo Kim",
+            "Tom Kim"
+          ],
+          "result": {
             "winner": null,
             "margin": null
           },
           "status": "inprogress",
-          "date": "2026-09-26T12:56Z"
+          "date": "2026-09-26T18:15Z"
+        },
+        {
+          "espnId": "12109",
+          "teamA": [
+            "Russell Henley",
+            "Jacob Bridgeman"
+          ],
+          "teamB": [
+            "Nick Taylor",
+            "Corey Conners"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "inprogress",
+          "date": "2026-09-26T18:29Z"
+        },
+        {
+          "espnId": "12110",
+          "teamA": [
+            "Cameron Young",
+            "Chris Gotterup"
+          ],
+          "teamB": [
+            "Adam Scott",
+            "Sungjae Im"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "inprogress",
+          "date": "2026-09-26T18:43Z"
+        },
+        {
+          "espnId": "12111",
+          "teamA": [
+            "Sam Burns",
+            "Wyndham Clark"
+          ],
+          "teamB": [
+            "Ryan Fox",
+            "Min Woo Lee"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "inprogress",
+          "date": "2026-09-26T18:57Z"
         }
       ]
     }
   ],
   "cupScore": {
-    "usa": 4.5,
+    "usa": 5.5,
     "intl": 8.5
   },
   "source": "espn-core",
   "year": 2026,
-  "fetched_at": "2026-09-26T17:52:11.138870Z"
+  "fetched_at": "2026-09-26T20:33:47.853739Z"
 }

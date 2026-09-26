@@ -3289,7 +3289,9 @@ async function cupFeedPollOnce(){ if(state.mode!=='teamcup'||state.syncSource!==
 function syncCupPolling(){
   const r=currentRoute();
   const on = state.mode==='teamcup' && state.syncSource==='auto' && (r==='cuphub'||r==='cupscore');
-  if(on && !cupFeedTimer) cupFeedTimer=setInterval(cupFeedPollOnce, 60000);
+  // Poll once right away: setInterval's first tick is a full minute out, so a freshly
+  // opened link showed nothing new for up to 60s.
+  if(on && !cupFeedTimer){ cupFeedTimer=setInterval(cupFeedPollOnce, 60000); cupFeedPollOnce(); }
   else if(!on && cupFeedTimer){ clearInterval(cupFeedTimer); cupFeedTimer=null; }
   syncCupLockTicker();
 }

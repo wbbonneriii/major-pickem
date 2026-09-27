@@ -379,10 +379,10 @@
             "Ryo Hisatsune"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "usa",
+            "margin": "3 & 2"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-27T16:02Z"
         },
         {
@@ -394,10 +394,10 @@
             "Tom Kim"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "intl",
+            "margin": "3 & 2"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-27T16:14Z"
         },
         {
@@ -409,10 +409,10 @@
             "Corey Conners"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "usa",
+            "margin": "5 & 3"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-27T16:26Z"
         },
         {
@@ -457,7 +457,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-27T17:02Z"
         },
         {
@@ -472,7 +472,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-27T17:14Z"
         },
         {
@@ -487,7 +487,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-27T17:26Z"
         },
         {
@@ -502,7 +502,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-27T17:38Z"
         },
         {
@@ -517,7 +517,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-27T17:50Z"
         },
         {
@@ -532,7 +532,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-27T18:02Z"
         },
         {
@@ -547,17 +547,17 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-27T18:14Z"
         }
       ]
     }
   ],
   "cupScore": {
-    "usa": 7.5,
-    "intl": 10.5
+    "usa": 9.5,
+    "intl": 11.5
   },
   "source": "espn-core",
   "year": 2026,
-  "fetched_at": "2026-09-27T17:15:37.296459Z"
+  "fetched_at": "2026-09-27T20:11:09.793922Z"
 }

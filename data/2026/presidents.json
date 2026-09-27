@@ -360,6 +360,107 @@
           "date": "2026-09-26T18:57Z"
         }
       ]
+    },
+    {
+      "espnId": null,
+      "name": "Sunday Singles",
+      "day": 4,
+      "order": 5,
+      "type": "singles",
+      "status": "scheduled",
+      "date": "2026-09-27T16:02Z",
+      "matches": [
+        {
+          "espnId": "12112",
+          "teamA": [
+            "Cameron Young"
+          ],
+          "teamB": [
+            "Ryo Hisatsune"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled",
+          "date": "2026-09-27T16:02Z"
+        },
+        {
+          "espnId": "12113",
+          "teamA": [
+            "Wyndham Clark"
+          ],
+          "teamB": [
+            "Tom Kim"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled",
+          "date": "2026-09-27T16:14Z"
+        },
+        {
+          "espnId": "12114",
+          "teamA": [
+            "Justin Thomas"
+          ],
+          "teamB": [
+            "Corey Conners"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled",
+          "date": "2026-09-27T16:26Z"
+        },
+        {
+          "espnId": "12115",
+          "teamA": [
+            "Scottie Scheffler"
+          ],
+          "teamB": [
+            "Nico Echavarria"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled",
+          "date": "2026-09-27T16:38Z"
+        },
+        {
+          "espnId": "12116",
+          "teamA": [
+            "Sam Burns"
+          ],
+          "teamB": [
+            "Sungjae Im"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled",
+          "date": "2026-09-27T16:50Z"
+        },
+        {
+          "espnId": "12117",
+          "teamA": [
+            "Chris Gotterup"
+          ],
+          "teamB": [
+            "Christiaan Bezuidenhout"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled",
+          "date": "2026-09-27T17:02Z"
+        }
+      ]
     }
   ],
   "cupScore": {
@@ -368,5 +469,5 @@
   },
   "source": "espn-core",
   "year": 2026,
-  "fetched_at": "2026-09-26T23:07:51.602896Z"
+  "fetched_at": "2026-09-27T01:23:20.322324Z"
 }

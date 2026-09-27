@@ -459,6 +459,96 @@
           },
           "status": "scheduled",
           "date": "2026-09-27T17:02Z"
+        },
+        {
+          "espnId": "12118",
+          "teamA": [
+            "Collin Morikawa"
+          ],
+          "teamB": [
+            "Hideki Matsuyama"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled",
+          "date": "2026-09-27T17:14Z"
+        },
+        {
+          "espnId": "12119",
+          "teamA": [
+            "Patrick Cantlay"
+          ],
+          "teamB": [
+            "Adam Scott"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled",
+          "date": "2026-09-27T17:26Z"
+        },
+        {
+          "espnId": "12120",
+          "teamA": [
+            "Jackson Koivun"
+          ],
+          "teamB": [
+            "Si Woo Kim"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled",
+          "date": "2026-09-27T17:38Z"
+        },
+        {
+          "espnId": "12121",
+          "teamA": [
+            "Jacob Bridgeman"
+          ],
+          "teamB": [
+            "Min Woo Lee"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled",
+          "date": "2026-09-27T17:50Z"
+        },
+        {
+          "espnId": "12122",
+          "teamA": [
+            "Russell Henley"
+          ],
+          "teamB": [
+            "Nick Taylor"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled",
+          "date": "2026-09-27T18:02Z"
+        },
+        {
+          "espnId": "12123",
+          "teamA": [
+            "Xander Schauffele"
+          ],
+          "teamB": [
+            "Ryan Fox"
+          ],
+          "result": {
+            "winner": null,
+            "margin": null
+          },
+          "status": "scheduled",
+          "date": "2026-09-27T18:14Z"
         }
       ]
     }
@@ -469,5 +559,5 @@
   },
   "source": "espn-core",
   "year": 2026,
-  "fetched_at": "2026-09-27T01:23:20.322324Z"
+  "fetched_at": "2026-09-27T06:48:42.943274Z"
 }

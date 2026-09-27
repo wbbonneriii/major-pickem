@@ -367,7 +367,7 @@
       "day": 4,
       "order": 5,
       "type": "singles",
-      "status": "scheduled",
+      "status": "inprogress",
       "date": "2026-09-27T16:02Z",
       "matches": [
         {
@@ -382,7 +382,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-27T16:02Z"
         },
         {
@@ -397,7 +397,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-27T16:14Z"
         },
         {
@@ -412,7 +412,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-27T16:26Z"
         },
         {
@@ -427,7 +427,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-27T16:38Z"
         },
         {
@@ -442,7 +442,7 @@
             "winner": null,
             "margin": null
           },
-          "status": "scheduled",
+          "status": "inprogress",
           "date": "2026-09-27T16:50Z"
         },
         {
@@ -559,5 +559,5 @@
   },
   "source": "espn-core",
   "year": 2026,
-  "fetched_at": "2026-09-27T06:48:42.943274Z"
+  "fetched_at": "2026-09-27T17:15:37.296459Z"
 }

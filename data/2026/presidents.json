@@ -367,7 +367,7 @@
       "day": 4,
       "order": 5,
       "type": "singles",
-      "status": "inprogress",
+      "status": "final",
       "date": "2026-09-27T16:02Z",
       "matches": [
         {
@@ -424,10 +424,10 @@
             "Nico Echavarria"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "usa",
+            "margin": "2 & 1"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-27T16:38Z"
         },
         {
@@ -439,10 +439,10 @@
             "Sungjae Im"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "intl",
+            "margin": "3 & 1"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-27T16:50Z"
         },
         {
@@ -454,10 +454,10 @@
             "Christiaan Bezuidenhout"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "usa",
+            "margin": "1 Up"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-27T17:02Z"
         },
         {
@@ -469,10 +469,10 @@
             "Hideki Matsuyama"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "usa",
+            "margin": "1 Up"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-27T17:14Z"
         },
         {
@@ -484,10 +484,10 @@
             "Adam Scott"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "usa",
+            "margin": "2 & 1"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-27T17:26Z"
         },
         {
@@ -499,10 +499,10 @@
             "Si Woo Kim"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "usa",
+            "margin": "2 Up"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-27T17:38Z"
         },
         {
@@ -514,10 +514,10 @@
             "Min Woo Lee"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "usa",
+            "margin": "1 Up"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-27T17:50Z"
         },
         {
@@ -529,10 +529,10 @@
             "Nick Taylor"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "tie",
+            "margin": "Halved"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-27T18:02Z"
         },
         {
@@ -544,20 +544,20 @@
             "Ryan Fox"
           ],
           "result": {
-            "winner": null,
-            "margin": null
+            "winner": "usa",
+            "margin": "2 & 1"
           },
-          "status": "inprogress",
+          "status": "final",
           "date": "2026-09-27T18:14Z"
         }
       ]
     }
   ],
   "cupScore": {
-    "usa": 9.5,
-    "intl": 11.5
+    "usa": 17.0,
+    "intl": 13.0
   },
   "source": "espn-core",
   "year": 2026,
-  "fetched_at": "2026-09-27T20:11:09.793922Z"
+  "fetched_at": "2026-09-27T23:06:12.029455Z"
 }
